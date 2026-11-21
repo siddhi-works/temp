@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="{{ page_lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ n.title or "Notice" }} – {{ college }}</title>
+<style>
+  :root { --fg:#111; --bg:#fff; --muted:#444; --ok:#0a6b2d; --warn:#8a4b00; --link:#0645ad; --line:#ccc; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#f2f2f2; --bg:#121212; --muted:#c8c8c8; --ok:#7ee2a0; --warn:#ffcc80; --link:#9ec5ff; --line:#444; } }
+  body { font: 1.15rem/1.6 system-ui, "Noto Sans Devanagari", sans-serif; color:var(--fg); background:var(--bg); margin:0; }
+  main { max-width: 46rem; margin: 0 auto; padding: 1rem; }
+  a { color: var(--link); }
+  .skip { position:absolute; left:-999px; } .skip:focus { left:1rem; top:1rem; background:var(--bg); padding:.5rem; }
+  .banner { border:2px solid var(--warn); padding:.75rem; border-radius:.5rem; }
+  .verified { color: var(--ok); font-weight:600; } .check { color: var(--warn); font-weight:600; }
+  table { border-collapse: collapse; width:100%; } th, td { border:1px solid var(--line); padding:.4rem; text-align:left; vertical-align:top; }
+  audio { width:100%; } button, .btn { min-height:44px; font-size:1rem; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<a class="skip" href="#key-dates">Skip to key dates</a>
+<main id="main" tabindex="-1">
+  {% if n.status == "superseded" %}
+  <p class="banner" role="alert"><strong>This notice has been replaced.</strong>
+    {% if latest %}<a href="/n/{{ latest.public_id }}">Open the latest version</a>.{% endif %}</p>
+  {% endif %}
+
+  <h1>{{ n.title or "Notice" }}</h1>
+  <p>{{ college }}{% if n.issuer %}, {{ n.issuer }}{% endif %}{% if n.issue_date %}. Issued {{ speak(n.issue_date) }}{% endif %}.</p>
+  {% if approver %}
+  <p class="verified">Checked and approved by {{ approver }}{% if n.approved_at %} on {{ speak(n.approved_at.date()) }}{% endif %}.</p>
+  {% endif %}
+
+  {% if n.changes_from_previous %}
+  <section aria-labelledby="changes"><h2 id="changes">What changed from the earlier version</h2>
+    <ul>{% for c in n.changes_from_previous %}<li>{{ c }}</li>{% endfor %}</ul></section>
+  {% endif %}
+
+  <section aria-labelledby="key-dates" id="key-dates" tabindex="-1"><h2 id="key-dates-h">Key dates and what to do</h2>
+  {% if actions %}
+    <ol>
+    {% for a in actions %}
+      <li><strong>{{ a.label }}</strong>{% if a.due_date %}: {{ speak(a.due_date) }}{% if a.due_time %} at {{ a.due_time }}{% endif %}{% endif %}{% if a.venue %}. Place: {{ a.venue }}{% endif %}{% if a.amount %}. Amount: {{ a.amount }}{% endif %}.
+        {% if a.verification == "needs_check" %}<span class="check">Please confirm this with the office.</span>{% endif %}</li>
+    {% endfor %}
+    </ol>
+    <p><a class="btn" href="/api/public/notices/{{ n.public_id }}/calendar.ics">Add these dates to my calendar</a></p>
+  {% else %}<p>No dates or deadlines in this notice.</p>{% endif %}
+  </section>
+
+  {% if renditions %}
+  <section aria-labelledby="listen"><h2 id="listen">Listen</h2>
+    {% for r in renditions %}
+    <h3 lang="{{ r.lang }}">{{ lang_names[r.lang] }}</h3>
+    <audio controls preload="none" src="{{ r.audio_url }}" aria-label="Spoken summary in {{ lang_names[r.lang] }}"></audio>
+    <p lang="{{ r.lang }}">{{ r.text }}</p>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if timetable %}
+  <section aria-labelledby="tt"><h2 id="tt">Timetable</h2>
+    <table>
+      <caption>{{ n.title }}: {{ timetable|length }} sessions</caption>
+      <thead><tr><th scope="col">Day</th><th scope="col">Time</th><th scope="col">Subject</th><th scope="col">Room</th><th scope="col">Teacher</th></tr></thead>
+      <tbody>
+      {% for r in timetable %}
+        <tr><th scope="row">{{ r.day or "" }}{% if r.on_date %} {{ speak(r.on_date) }}{% endif %}</th>
+          <td>{{ r.start or "" }}{% if r.end %} to {{ r.end }}{% endif %}</td><td>{{ r.subject or "" }}</td><td>{{ r.room or "" }}</td><td>{{ r.faculty or "" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="full"><h2 id="full">Full notice</h2>
+    <div lang="{{ body_lang }}">{{ body_html }}</div>
+  </section>
+  <p class="muted">Text read from the original scan by AI ({{ engines }}) and checked by college staff. Report a mistake to {{ contact }}.</p>
+</main>
+</body>
+</html>
