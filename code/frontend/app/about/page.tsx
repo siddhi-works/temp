@@ -1,5 +1,7 @@
 "use client";
 
+/** About page: what Saathi does, what it stores, which AI tools it uses, and its accessibility statement (GIGW 3.0 expects one). */
+
 import { useT } from "@/lib/i18n";
 import { Screen } from "../me/Shell";
 
@@ -17,6 +19,7 @@ export default function About() {
   const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
   return (
     <Screen title={t("ab_title")} onBack={() => (window.location.href = "/me")}>
+      <p className="muted">{t("ab_event")}</p>
       {SECTIONS.map(([h, p]) => (
         <section key={h} aria-labelledby={h}>
           <h2 id={h}>{t(h)}</h2>

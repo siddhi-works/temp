@@ -205,7 +205,30 @@ def resolve_phrase(transcript: str, today: date) -> Resolved:
     return Resolved(None, time_, "no date found")
 
 
-def catch_readback(label: str, r: Resolved) -> str:
+_READBACK = {
+    "hi": {
+        "nodate": "मैंने सुना: \"{label}\"। मैं तारीख नहीं समझ सका। तारीख बोलें या लिखें, जैसे \"अगले शुक्रवार\" या \"28 नवंबर\"।",
+        "ok": "{label}। अंतिम तारीख {when}।{caution}",
+        "caution": " आपने 'अगला' कहा था, इसलिए कृपया यह तारीख जाँच लें।",
+    },
+    "mr": {
+        "nodate": "मी ऐकले: \"{label}\". मला तारीख समजली नाही. तारीख सांगा किंवा लिहा, उदा. \"पुढचा शुक्रवार\" किंवा \"२८ नोव्हेंबर\".",
+        "ok": "{label}. अंतिम तारीख {when}.{caution}",
+        "caution": " तुम्ही 'पुढचा' म्हटले होते, म्हणून कृपया ही तारीख तपासा.",
+    },
+}
+
+
+def catch_readback(label: str, r: Resolved, lang: str = "en") -> str:
+    """The spoken read-back. Hindi and Marathi leave out the 'say YES' tail: the web page has Save and Discard buttons."""
+    if lang in _READBACK:
+        from .dates import speak_date_lang, speak_time_lang
+
+        tpl = _READBACK[lang]
+        if r.due is None:
+            return tpl["nodate"].format(label=label)
+        when = speak_date_lang(r.due, lang) + (f", {speak_time_lang(r.time, lang)}" if r.time else "")
+        return tpl["ok"].format(label=label, when=when, caution=tpl["caution"] if r.ambiguous else "")
     if r.due is None:
         return f'I heard: "{label}". I could not tell the date. Say or type the date, for example "next Friday" or "28 November".'
     when = speak_date(r.due) + (f" at {speak_time(r.time)}" if r.time else "")

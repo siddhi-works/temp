@@ -1,3 +1,5 @@
+/** Public page for a campus walkthrough route, opened from a QR code. */
+
 import RoutePlayer from "./RoutePlayer";
 
 export const metadata = { title: "Walkthrough" };

@@ -1,5 +1,7 @@
 "use client";
 
+/** Shared page frame for every student screen: top bar with language buttons, Back button, and a focused page title. */
+
 import { useEffect, useRef } from "react";
 import { LANGS, useT } from "@/lib/i18n";
 import "./me.css";

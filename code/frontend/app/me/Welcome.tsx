@@ -1,5 +1,7 @@
 "use client";
 
+/** First screen for a new student: one Start button, no account. Creates an anonymous session. */
+
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { friendlyError, useT } from "@/lib/i18n";

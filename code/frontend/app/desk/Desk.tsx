@@ -1,5 +1,7 @@
 "use client";
 
+/** Staff desk: upload notices, review and approve the dates, and manage volunteers. Used by the college side. */
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";

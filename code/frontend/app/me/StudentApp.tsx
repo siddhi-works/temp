@@ -1,9 +1,10 @@
 "use client";
 
+/** The student app: sign-in state, the screen router (#read, #catch, #deadlines, #settings) and the deadline screens. */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import Braille from "@/components/Braille";
-import Header from "@/components/Header";
-import { api, ApiError, errText, rel, speakTime, WEEKDAYS } from "@/lib/api";
+import { api, ApiError, errText, speakDateLocal, speakTime, WEEKDAYS } from "@/lib/api";
 import { shrinkImage } from "@/lib/image";
 import { extFor, useRecorder } from "@/lib/recorder";
 import { clearDisplay } from "@/lib/display";
@@ -208,7 +209,7 @@ function RightNow({ token }: { token: string }) {
 /* ------------------------------------------------------------------ Verbal deadline catcher */
 
 function Catcher({ token }: { token: string }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const rec = useRecorder(45);
   const [pending, setPending] = useState<any>(null);
   const [status, setStatus] = useState<{ text: string; tone?: "error" | "ok" }>({ text: "" });
@@ -246,6 +247,7 @@ function Catcher({ token }: { token: string }) {
       }
       const f = new FormData();
       f.append("audio", blob, `catch.${extFor(blob)}`);
+      f.append("lang", lang);
       submit(f);
     } else {
       setPending(null);
@@ -257,7 +259,7 @@ function Catcher({ token }: { token: string }) {
   const confirm = async () => {
     setBusy(true);
     try {
-      const body = newDate && newDate !== pending.due_date ? { due_date: newDate } : {};
+      const body = newDate && newDate !== pending.due_date ? { due_date: newDate, lang } : { lang };
       const r = await api(`/api/me/catch/${pending.id}/confirm`, { token, json: body });
       setPending(null);
       setTyped("");
@@ -292,6 +294,7 @@ function Catcher({ token }: { token: string }) {
           if (typed.trim().length < 3) return setStatus({ text: t("c_type_first"), tone: "error" });
           const f = new FormData();
           f.append("text", typed.trim());
+          f.append("lang", lang);
           submit(f);
         }}
       >
@@ -313,7 +316,7 @@ function Catcher({ token }: { token: string }) {
           <label htmlFor="catch-date">{pending.due_date ? t("c_date_change") : t("c_date_needed")}</label>
           <input id="catch-date" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-describedby="catch-date-hint" />
           <p id="catch-date-hint" className="hint">
-            {pending.due_date_spoken ? t("c_understood").replace("{d}", pending.due_date_spoken + (pending.due_time ? ` ${t("d_at")} ${speakTime(pending.due_time)}` : "")) : t("c_unknown_date")}
+            {pending.due_date_spoken ? t("c_understood").replace("{d}", speakDateLocal(pending.due_date, lang) + (pending.due_time ? ` ${t("d_at")} ${speakTime(pending.due_time)}` : "")) : t("c_unknown_date")}
           </p>
           <div className="row">
             <button className="btn primary" onClick={confirm} disabled={busy || !newDate}>
@@ -483,7 +486,7 @@ function Boards({ token }: { token: string }) {
 /* ------------------------------------------------------------------ Deadlines */
 
 function Deadlines({ token, inbox }: { token: string; inbox: any }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [mine, setMine] = useState<any[]>([]);
   const load = useCallback(() => {
     api("/api/me/deadlines", { token })
@@ -500,13 +503,13 @@ function Deadlines({ token, inbox }: { token: string; inbox: any }) {
     key: "c" + u.notice_public_id + u.label,
     label: u.label,
     date: u.due_date,
-    spoken: u.due_date_spoken,
+    spoken: speakDateLocal(u.due_date, lang),
     time: u.due_time,
     from: u.notice_title,
     link: `/n/${u.notice_public_id}?t=${encodeURIComponent(token)}`,
     unconfirmed: u.verification === "needs_check",
   }));
-  const own = mine.map((d) => ({ key: "p" + d.id, label: d.label, date: d.due_date, spoken: d.due_date_spoken, time: d.due_time, from: t("d_own") }));
+  const own = mine.map((d) => ({ key: "p" + d.id, label: d.label, date: d.due_date, spoken: speakDateLocal(d.due_date, lang), time: d.due_time, from: t("d_own") }));
   const all = [...college, ...own].sort((a, b) => a.date.localeCompare(b.date));
 
   return (

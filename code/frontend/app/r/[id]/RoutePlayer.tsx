@@ -1,5 +1,7 @@
 "use client";
 
+/** Plays a campus walkthrough route one step at a time, with audio. */
+
 import { useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
 import { api, errText, rel } from "@/lib/api";

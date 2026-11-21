@@ -1,5 +1,7 @@
 "use client";
 
+/** Records the voice instructions for one step of a campus walkthrough route. */
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";

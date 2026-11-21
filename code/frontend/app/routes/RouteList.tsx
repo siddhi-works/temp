@@ -1,5 +1,7 @@
 "use client";
 
+/** Renders the list of campus walkthrough routes. */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";

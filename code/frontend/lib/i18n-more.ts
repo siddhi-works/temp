@@ -1,18 +1,22 @@
+/** More interface text: colour names, the delete confirmation, and the About page. */
+
 import type { Lang } from "./i18n";
 
 /** Colour names, delete confirmation, and the About / privacy / accessibility page. */
 export const MORE: Record<Lang, Record<string, string>> = {
   en: {
+    ab_event: "Made by team MolecuLens for the Naya Bharat 2047 hackathon, problem 5.3: a notice the screen reader cannot read. Saathi Campus is an independent student project and is not endorsed by Rotary or Rotaract.",
     look_daylight: "Warm daylight",
     look_sepia: "Soft sepia",
     forget_confirm: "Remove all your saved details from this phone?",
+    skip: "Skip to main content",
     prn_help: "PRN means Permanent Registration Number",
     about_link: "How Saathi works, privacy and accessibility",
     ab_title: "How Saathi works",
     ab_what_h: "What it does",
     ab_what: "Saathi reads a photo or PDF of a college notice aloud in English, Hindi or Marathi. It checks every date against the scan before it says it.",
     ab_priv_h: "Your privacy",
-    ab_priv: "A notice is read and then forgotten. The notice text, the voice and your details are not saved on our server. Your details, such as class and roll number, stay on your phone and are sent only with the notice you choose to read.",
+    ab_priv: "A notice is read and then forgotten. The notice text, the voice and your details are not saved on our server. Your details, such as class and roll number, stay on your phone and are sent only with the notice you choose to read. Only a deadline you choose to save is stored, so Saathi can remind you.",
     ab_ai_h: "AI tools and sources",
     ab_ai: "Reading scans and speaking: Sarvam AI. Understanding and summaries: Google Gemini. Hosting: Render and Neon. AI can make mistakes, so Saathi tells you when a date could not be checked and asks you to confirm it with the college office.",
     ab_acc_h: "Accessibility",
@@ -23,16 +27,18 @@ export const MORE: Record<Lang, Record<string, string>> = {
     ab_feedback: "Tell us what was hard to use.",
   },
   hi: {
+    ab_event: "टीम MolecuLens द्वारा Naya Bharat 2047 हैकथॉन, समस्या 5.3 के लिए बनाया गया: वह सूचना जिसे स्क्रीन रीडर नहीं पढ़ सकता। Saathi Campus एक स्वतंत्र विद्यार्थी परियोजना है और Rotary या Rotaract द्वारा समर्थित नहीं है।",
     look_daylight: "गर्म दिन की रोशनी",
     look_sepia: "हल्का सेपिया",
     forget_confirm: "क्या इस फ़ोन से आपके सभी सेव किए गए विवरण हटा दें?",
+    skip: "मुख्य सामग्री पर जाएँ",
     prn_help: "PRN का मतलब स्थायी पंजीकरण संख्या है",
     about_link: "Saathi कैसे काम करता है, गोपनीयता और सुगम्यता",
     ab_title: "Saathi कैसे काम करता है",
     ab_what_h: "यह क्या करता है",
     ab_what: "Saathi कॉलेज की सूचना की फ़ोटो या PDF को अंग्रेज़ी, हिन्दी या मराठी में पढ़कर सुनाता है। हर तारीख बोलने से पहले उसे स्कैन से मिलाकर जाँचता है।",
     ab_priv_h: "आपकी गोपनीयता",
-    ab_priv: "सूचना पढ़ी जाती है और फिर भुला दी जाती है। सूचना का पाठ, आवाज़ और आपके विवरण हमारे सर्वर पर सेव नहीं होते। आपके विवरण, जैसे कक्षा और रोल नंबर, आपके फ़ोन में रहते हैं और केवल उसी सूचना के साथ भेजे जाते हैं जिसे आप पढ़वाते हैं।",
+    ab_priv: "सूचना पढ़ी जाती है और फिर भुला दी जाती है। सूचना का पाठ, आवाज़ और आपके विवरण हमारे सर्वर पर सेव नहीं होते। आपके विवरण, जैसे कक्षा और रोल नंबर, आपके फ़ोन में रहते हैं और केवल उसी सूचना के साथ भेजे जाते हैं जिसे आप पढ़वाते हैं। केवल वही डेडलाइन सेव होती है जिसे आप सेव करना चुनते हैं, ताकि Saathi आपको याद दिला सके।",
     ab_ai_h: "AI टूल और स्रोत",
     ab_ai: "स्कैन पढ़ना और बोलना: Sarvam AI। समझना और सारांश: Google Gemini। होस्टिंग: Render और Neon। AI से गलती हो सकती है, इसलिए जब कोई तारीख जाँची न जा सके तो Saathi बताता है और आपसे कॉलेज कार्यालय में पुष्टि करने को कहता है।",
     ab_acc_h: "सुगम्यता",
@@ -43,16 +49,18 @@ export const MORE: Record<Lang, Record<string, string>> = {
     ab_feedback: "हमें बताएँ कि क्या इस्तेमाल करना मुश्किल था।",
   },
   mr: {
+    ab_event: "टीम MolecuLens ने Naya Bharat 2047 हॅकेथॉन, समस्या 5.3 साठी बनवले: स्क्रीन रीडर वाचू शकत नाही अशी सूचना. Saathi Campus हा स्वतंत्र विद्यार्थी प्रकल्प आहे आणि Rotary किंवा Rotaract यांनी त्याला मान्यता दिलेली नाही.",
     look_daylight: "उबदार दिवसप्रकाश",
     look_sepia: "सौम्य सेपिया",
     forget_confirm: "या फोनवरून तुमचे सर्व सेव्ह केलेले तपशील काढायचे का?",
+    skip: "मुख्य मजकुराकडे जा",
     prn_help: "PRN म्हणजे कायमचा नोंदणी क्रमांक",
     about_link: "Saathi कसे काम करते, गोपनीयता आणि सुलभता",
     ab_title: "Saathi कसे काम करते",
     ab_what_h: "हे काय करते",
     ab_what: "Saathi महाविद्यालयाच्या सूचनेचा फोटो किंवा PDF इंग्रजी, हिंदी किंवा मराठीत वाचून दाखवते. प्रत्येक तारीख सांगण्यापूर्वी ती स्कॅनशी जुळवून तपासते.",
     ab_priv_h: "तुमची गोपनीयता",
-    ab_priv: "सूचना वाचली जाते आणि मग विसरली जाते. सूचनेचा मजकूर, आवाज आणि तुमचे तपशील आमच्या सर्व्हरवर सेव्ह होत नाहीत. तुमचे तपशील, जसे की वर्ग आणि रोल नंबर, तुमच्या फोनमध्येच राहतात आणि तुम्ही वाचायला निवडलेल्या सूचनेसोबतच पाठवले जातात.",
+    ab_priv: "सूचना वाचली जाते आणि मग विसरली जाते. सूचनेचा मजकूर, आवाज आणि तुमचे तपशील आमच्या सर्व्हरवर सेव्ह होत नाहीत. तुमचे तपशील, जसे की वर्ग आणि रोल नंबर, तुमच्या फोनमध्येच राहतात आणि तुम्ही वाचायला निवडलेल्या सूचनेसोबतच पाठवले जातात. फक्त तुम्ही सेव्ह करायला निवडलेली अंतिम तारीख साठवली जाते, म्हणजे Saathi तुम्हाला आठवण करून देऊ शकेल.",
     ab_ai_h: "AI साधने आणि स्रोत",
     ab_ai: "स्कॅन वाचणे आणि बोलणे: Sarvam AI. समजून घेणे आणि सारांश: Google Gemini. होस्टिंग: Render आणि Neon. AI कडून चूक होऊ शकते, म्हणून एखादी तारीख तपासता आली नाही तर Saathi सांगते आणि महाविद्यालयाच्या कार्यालयात खात्री करायला सांगते.",
     ab_acc_h: "सुलभता",

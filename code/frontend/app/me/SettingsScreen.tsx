@@ -1,5 +1,7 @@
 "use client";
 
+/** Settings screen: 'My details' (kept on this phone only) and the display choices (text size, colours, spacing). */
+
 import { useEffect, useRef, useState } from "react";
 import { useDisplay, type Look, type Size, type Space } from "@/lib/display";
 import { useT } from "@/lib/i18n";

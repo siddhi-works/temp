@@ -368,3 +368,35 @@ def diff_actions(old: list[dict], new: list[dict]) -> list[str]:
     for o in unmatched_old:
         changes.append(f"Removed: {o.get('label')}.")
     return changes
+
+
+# --- Hindi and Marathi wording for spoken dates and times (used by the student pages) ----------------------------
+
+_WEEKDAYS_L = {
+    "hi": ["सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
+    "mr": ["सोमवार", "मंगळवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
+}
+_MONTHS_L = {
+    "hi": ["जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"],
+    "mr": ["जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून", "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर"],
+}
+_MR_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
+
+
+def speak_date_lang(d: date, lang: str) -> str:
+    """'Monday, 30 November 2026' in the student's language (Marathi with Devanagari digits)."""
+    if lang not in _MONTHS_L:
+        return speak_date(d)
+    day, year = str(d.day), str(d.year)
+    if lang == "mr":
+        day, year = day.translate(_MR_DIGITS), year.translate(_MR_DIGITS)
+    return f"{_WEEKDAYS_L[lang][d.weekday()]}, {day} {_MONTHS_L[lang][d.month - 1]} {year}"
+
+
+def speak_time_lang(hm: str, lang: str) -> str:
+    """'14:30' as '2:30 PM', '14:30 बजे' or '१४:३० वाजता'."""
+    if lang not in ("hi", "mr"):
+        h, m = int(hm[:2]), hm[3:5]
+        return f"{h % 12 or 12}{':' + m if m != '00' else ''} {'AM' if h < 12 else 'PM'}"
+    text = f"{int(hm[:2])}:{hm[3:5]}"
+    return (text.translate(_MR_DIGITS) + " वाजता") if lang == "mr" else (text + " बजे")

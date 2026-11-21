@@ -18,7 +18,7 @@ from ..errors import AppError, NotFound, PermanentError
 from ..models import PersonalDeadline, PushSubscription, Snap, Student
 from ..pipeline import campus
 from ..pipeline.buzz import BUZZ_TYPES, catalog, valid_pattern
-from ..pipeline.dates import find_dates, first_title_line, rule_based_actions, speak_date, verify_action
+from ..pipeline.dates import find_dates, first_title_line, rule_based_actions, speak_date, speak_date_lang, verify_action
 from ..pipeline.profile import parse_profile, rule_based_personal, verify_personal
 from ..pipeline.steps import today_local
 from ..providers.base import ProviderError
@@ -153,27 +153,6 @@ PERSONAL_RULE = {
     "hi": "मुझे आपके विवरण वाली यह पंक्ति मिली:",
     "mr": "मला तुमचे तपशील असलेली ही ओळ सापडली:",
 }
-
-
-_WEEKDAYS = {
-    "hi": ["सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
-    "mr": ["सोमवार", "मंगळवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
-}
-_MONTHS = {
-    "hi": ["जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"],
-    "mr": ["जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून", "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर"],
-}
-
-
-def speak_date_lang(d: date, lang: str) -> str:
-    """'Monday, 30 November 2026' in the student's language (Marathi with Devanagari digits)."""
-    if lang not in _MONTHS:
-        return speak_date(d)
-    day, year = str(d.day), str(d.year)
-    if lang == "mr":
-        digits = str.maketrans("0123456789", "०१२३४५६७८९")
-        day, year = day.translate(digits), year.translate(digits)
-    return f"{_WEEKDAYS[lang][d.weekday()]}, {day} {_MONTHS[lang][d.month - 1]} {year}"
 
 
 def _plain_text(text: str) -> str:
@@ -383,6 +362,7 @@ async def _read_notice(data: bytes, lang: str, prof=None) -> dict:
 async def catch(
     audio: UploadFile | None = File(None),
     text: str | None = Form(None),
+    lang: str = Form("en"),
     student: Student = Depends(current_student),
     s: AsyncSession = Depends(get_session),
 ):
@@ -398,7 +378,7 @@ async def catch(
         transcript, source = text[:1000], "text"
     else:
         raise AppError("Send a recording or some text.", code="empty_speech")
-    pd, readback = await campus.create_catch(s, student, transcript, source)
+    pd, readback = await campus.create_catch(s, student, transcript, source, lang if lang in ("en", "hi", "mr") else "en")
     return catch_json(pd, readback)
 
 
@@ -406,6 +386,7 @@ class CatchConfirm(BaseModel):
     due_date: date | None = None
     due_time: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     label: str | None = Field(None, max_length=300)
+    lang: str = "en"
 
 
 @router.post("/catch/{catch_id}/confirm")
@@ -421,7 +402,8 @@ async def confirm_catch(catch_id: str, body: CatchConfirm | None = None, student
         if body.label:
             pd.label = body.label
     made = await campus.confirm_catch(s, student, pd)
-    return {**catch_json(pd), "reminders": len(made), "message": campus.confirmation_text(pd, len(made))}
+    lang = body.lang if body and body.lang in ("hi", "mr") else "en"
+    return {**catch_json(pd), "reminders": len(made), "message": campus.confirmation_text(pd, len(made), lang)}
 
 
 @router.post("/catch/{catch_id}/cancel")

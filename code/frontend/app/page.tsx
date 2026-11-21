@@ -1,3 +1,5 @@
+/** Landing page: what Saathi is and where to go next. */
+
 import Link from "next/link";
 import Header from "@/components/Header";
 import Braille from "@/components/Braille";

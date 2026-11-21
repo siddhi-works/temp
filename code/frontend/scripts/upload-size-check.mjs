@@ -1,4 +1,4 @@
-// Checks that a big phone photo is shrunk in the browser before upload. Needs the backend with an empty
+﻿// Checks that a big phone photo is shrunk in the browser before upload. Needs the backend with an empty
 // database and the app running. Usage: IMG=/path/big.jpg node scripts/upload-size-check.mjs
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -22,7 +22,7 @@ const link = await page.getByRole("link", { name: /\/me\?t=/ }).getAttribute("hr
 await page.goto(BASE + link);
 await page.getByRole("button", { name: /right now/i }).waitFor();
 // The backend stores the upload as received, so its size on disk is what travelled over the network.
-const STORAGE = process.env.STORAGE_DIR || "/tmp/claude-0/e2e/storage";
+const STORAGE = process.env.STORAGE_DIR || "./storage";
 const stored = () => (fs.existsSync(`${STORAGE}/snaps`) ? fs.readdirSync(`${STORAGE}/snaps`, { recursive: true, withFileTypes: true }).filter((f) => f.isFile()).map((f) => fs.statSync(`${f.parentPath}/${f.name}`).size) : []);
 await page.locator("#board-file").setInputFiles(IMG);
 await page.getByText(/Saved\. Reading the board/).waitFor({ timeout: 20000 });

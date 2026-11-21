@@ -1,3 +1,5 @@
+/** More interface text: the catch and deadline screens, the audio player, and error messages. */
+
 import type { Lang } from "./i18n";
 
 /** More UI text: the catch and deadlines screens, the audio player, and friendly errors in each language. */

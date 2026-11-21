@@ -1,3 +1,5 @@
+/** Site header used by the staff and public pages. */
+
 import Link from "next/link";
 import Logo from "./Logo";
 

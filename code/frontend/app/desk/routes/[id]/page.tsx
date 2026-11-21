@@ -1,3 +1,5 @@
+/** Staff page for one campus walkthrough route. */
+
 import Recorder from "./Recorder";
 
 export const metadata = { title: "Record a walkthrough", robots: { index: false } };

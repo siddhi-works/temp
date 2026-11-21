@@ -1,4 +1,6 @@
 "use client";
+
+/** Interface translations store (English, Hindi, Marathi) and friendly error messages. The same choice sets the voice language. */
 /** Tiny UI translation store: English, Hindi, Marathi. The same choice sets the voice language for notices. */
 import { useEffect, useState } from "react";
 import { EXTRA } from "./i18n-extra";

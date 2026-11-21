@@ -1,3 +1,5 @@
+/** The student page (/me). A thin server page that sets the metadata and mounts the student app. */
+
 import type { Metadata } from "next";
 import StudentApp from "./StudentApp";
 

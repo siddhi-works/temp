@@ -1,5 +1,7 @@
 "use client";
 
+/** Microphone recorder hook used by the deadline catcher. */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Microphone recording for voice notes. Picks a format the phone browser supports

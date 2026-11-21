@@ -90,3 +90,13 @@ export function speakTime(hhmm: string | null | undefined): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return m ? `${h12}:${String(m).padStart(2, "0")} ${suffix}` : `${h12} ${suffix}`;
 }
+
+/** "Monday, 30 November 2026" in the student's language, formatted by the browser. */
+export function speakDateLocal(iso: string | null | undefined, lang: string): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso + "T00:00:00").toLocaleDateString(`${lang}-IN`, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}

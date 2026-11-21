@@ -1,5 +1,7 @@
 "use client";
 
+/** Read-a-notice screen: pick a file, show progress, play the spoken result, and list the dates and what applies to you. */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, speakTime } from "@/lib/api";
 import { friendlyError, useT } from "@/lib/i18n";

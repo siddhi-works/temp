@@ -1,4 +1,6 @@
 "use client";
+
+/** Display choices (colours, text size, letter spacing): the student decides, and it is remembered on this phone only. */
 /** Display choices (colours, text size, letter spacing): the student decides, and it is remembered on this phone only. */
 import { useEffect, useState } from "react";
 

@@ -168,7 +168,7 @@ async def make_label(transcript: str) -> str:
     return fallback_label(transcript)
 
 
-async def create_catch(s: AsyncSession, student: Student, transcript: str, source: str) -> tuple[PersonalDeadline, str]:
+async def create_catch(s: AsyncSession, student: Student, transcript: str, source: str, lang: str = "en") -> tuple[PersonalDeadline, str]:
     transcript = re.sub(r"\s+", " ", transcript).strip()
     if len(transcript) < 3:
         raise AppError("I did not catch that. Please try again.", code="empty_speech")
@@ -187,7 +187,7 @@ async def create_catch(s: AsyncSession, student: Student, transcript: str, sourc
     s.add(pd)
     student.catch_until = None
     await s.commit()
-    return pd, catch_readback(label, resolved)
+    return pd, catch_readback(label, resolved, lang)
 
 
 async def latest_pending(s: AsyncSession, student_id: str) -> PersonalDeadline | None:
@@ -233,8 +233,16 @@ async def confirm_catch(s: AsyncSession, student: Student, pd: PersonalDeadline)
     return made
 
 
-def confirmation_text(pd: PersonalDeadline, reminders: int) -> str:
-    from .dates import speak_date
+def confirmation_text(pd: PersonalDeadline, reminders: int, lang: str = "en") -> str:
+    from .dates import speak_date, speak_date_lang, speak_time_lang
+
+    if lang in ("hi", "mr"):
+        when = speak_date_lang(pd.due_date, lang) + (f", {speak_time_lang(pd.due_time, lang)}" if pd.due_time else "")
+        if lang == "hi":
+            tail = f" मैं आपको {reminders} बार पहले याद दिलाऊँगा।" if reminders else " तारीख बहुत नज़दीक है, इसलिए और रिमाइंडर नहीं भेजूँगा।"
+            return f"सेव हुआ: {pd.label}, अंतिम तारीख {when}।{tail}"
+        tail = f" मी तुम्हाला {reminders} वेळा आधी आठवण करून देईन." if reminders else " तारीख खूप जवळ आहे, म्हणून आणखी आठवणी पाठवणार नाही."
+        return f"सेव्ह केले: {pd.label}, अंतिम तारीख {when}.{tail}"
 
     when = speak_date(pd.due_date) + (f" at {speak_time(pd.due_time)}" if pd.due_time else "")
     tail = f" I will remind you {reminders} time{'s' if reminders != 1 else ''} before." if reminders else " It is very soon, so I will not send more reminders."

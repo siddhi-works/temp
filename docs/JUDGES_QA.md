@@ -1,0 +1,79 @@
+# Questions judges are likely to ask, and straight answers
+
+Numbers marked *measured* come from our own runs on real notices; *estimated* come from configured prices.
+
+## The product
+
+**1. Why not paste the PDF into ChatGPT or Gemini?**
+A blind student cannot operate that flow, it does not read scans in Marathi reliably, and nothing checks its dates. Saathi is one tap from the Share menu, speaks the result, and verifies every date against the scan. A confident wrong date is the dangerous failure.
+
+**2. How do you stop the AI inventing a deadline?**
+We treat it as untrusted. Every date, weekday, amount, time and quoted line is re-checked in code against the scan. If anything fails, Saathi still speaks but says "please confirm with the college office". (Architecture, section 3.)
+
+**3. Who is it for, and who pays?**
+Blind, low-vision and dyslexic students in colleges that publish scanned notices. A Rotaract club or a college disability cell can run it: about ₹2 per notice (*estimated*: ₹0.50 per scanned page plus ₹3 per 1,000 spoken characters; text PDFs skip the scan cost).
+
+**4. Why a web app and not a native app?**
+It opens from a link, installs to the home screen, appears in Android's Share menu, and TalkBack reads it natively. No store review, one codebase. Native would cost weeks and hand-labelled controls.
+
+**5. Why not WhatsApp?**
+Notices already arrive there, so the Share menu starts the flow from WhatsApp. Replying through WhatsApp needs Meta business verification, and unofficial libraries break its terms. The code exists and is switched off.
+
+## Privacy and security
+
+**6. What do you store?**
+For a read: nothing. Not the file, the text, the summary, the audio or the student's details. The student's details stay in their browser. The only stored record is a deadline the student chooses to save. (Security, section 3.)
+
+**7. How is personalisation private?**
+Class and roll number live on the phone and travel only inside the request that needs them. The server never writes them, and the AI's answer about "you" is accepted only if the quoted line names the student's own roll number, name or class.
+
+**8. What about prompt injection in a malicious notice?**
+Scan text is delimited as untrusted data, output must match a schema, the student's details are sanitised, and nothing the AI returns is spoken as fact without a code check. A notice that says "ignore your rules" cannot change a verified date.
+
+**9. How do anonymous users not abuse it?**
+Per-student read limits, an optional access code, a setup lock, and a hard spend cap. Limits are per student, so a whole classroom on one Wi-Fi is not blocked. (Tested.)
+
+**10. Is it compliant with India's data protection law?**
+We designed to avoid collecting personal data for reads, which is the strongest position. We have not had legal review and do not claim compliance.
+
+## Engineering
+
+**11. What happens when the AI is down or out of quota?**
+It happened to us during testing. Understanding fails over across keys and then to a second model; reading fails over from Sarvam to Gemini; voice from Sarvam to Google to the phone's own voice. If all AI fails, Saathi quotes the scan text and any dates it finds, flagged for checking.
+
+**12. How fast is it?**
+*Measured:* about 7 to 25 seconds for a one-page notice, up to about a minute for long PDFs. A hard 40-second limit on the AI step keeps it inside the host's request limit.
+
+**13. Will it scale?**
+The student path is stateless, so scaling is adding instances and AI quota. Today the job queue and rate limiter are in-process, which is right for one instance; the 100x plan (shared queue, migrations, object storage) is written down. The first real limit is AI provider quota and cost, not our code.
+
+**14. Why two AI vendors? Isn't that lock-in risk reversed?**
+Sarvam is built for Indian languages and voice; Gemini adds vision and structured output. Each is behind a small adapter and a failover chain, so either can be swapped or lost without touching the logic.
+
+**15. How is it tested?**
+116 automated tests: the full flow, injected failures (provider outages, quota errors), performance budgets, security guardrails, and personal insight (including "a claim about someone else's row is dropped"). Plus an accessibility test that runs axe, keyboard and size checks on every screen in every theme.
+
+**16. What is your CI?**
+A GitHub Actions workflow runs the backend tests, lints, type-checks and builds the frontend on every push.
+
+## Accessibility
+
+**17. How do you know it is accessible?**
+Computed 7:1 contrast on four palettes, axe including AAA rules across every screen, keyboard and target checks, and eyes-closed TalkBack passes. We are explicit that automated tests are not enough.
+
+**18. Has a blind student used it?**
+Not yet in a formal, consented session. It is the next milestone and we say so in the README.
+
+**19. Why three languages and not twenty?**
+Marathi, Hindi and English cover our pilot's students. The interface, dates, errors and voice are localised through small dictionaries, so adding a language means translating about 150 strings and checking the voice and OCR for it.
+
+## Honesty questions
+
+**20. What is the biggest weakness?**
+No real-user study yet, and the free AI tiers are small. Both are named, and both have a plan.
+
+**21. What would you build next?**
+A consented study with blind students, then WhatsApp delivery when business verification is possible, calendar reminders, and a revision and quiz mode that summarises lecture notes by voice.
+
+**22. Did you use AI to build it?**
+Yes: an AI coding assistant helped write code. Every behaviour is covered by automated tests and reviewed by the team. The AI services used in the product are Sarvam and Gemini.
