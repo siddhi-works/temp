@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
+import PageFrame from "@/components/PageFrame";
 import { api, errText, rel, speakTime } from "@/lib/api";
 import { shrinkImage } from "@/lib/image";
 
@@ -25,12 +26,34 @@ function saveToken(t: string) {
 }
 
 export default function Desk() {
+  return (
+    <PageFrame>
+      <DeskApp />
+    </PageFrame>
+  );
+}
+
+function DeskApp() {
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
   const [err, setErr] = useState("");
   const [tab, setTab] = useState<"notices" | "routes" | "students" | "team">("notices");
 
-  useEffect(() => setToken(loadToken()), []);
+  useEffect(() => {
+    // A private link like /desk#token=... signs in at once. The part after # stays in the browser: it is never sent to the server or logged.
+    // It also works when the desk is already open and only the part after # changes, hence the hashchange listener.
+    const fromLink = () => {
+      const t = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token");
+      if (!t) return false;
+      saveToken(t);
+      window.history.replaceState(null, "", window.location.pathname);
+      setToken(t);
+      return true;
+    };
+    if (!fromLink()) setToken(loadToken());
+    window.addEventListener("hashchange", fromLink);
+    return () => window.removeEventListener("hashchange", fromLink);
+  }, []);
   useEffect(() => {
     if (!token) return;
     api("/api/me", { staff: token })
@@ -93,7 +116,16 @@ export default function Desk() {
 
 function SignIn({ error, onToken }: { error: string; onToken: (t: string) => void }) {
   const [t, setT] = useState("");
-  const [setup, setSetup] = useState({ college_code: "", college_name: "", admin_name: "", admin_office: "Exam Section" });
+  const [setup, setSetup] = useState({ college_code: "", college_name: "", admin_name: "", admin_office: "Exam Section", setup_token: "" });
+  const [openSetup, setOpenSetup] = useState(false);
+  useEffect(() => {
+    // /desk#setup=TOKEN&code=..&college=..&name=..&office=.. pre-fills the first-time form (private link, never sent to the server).
+    const f = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (!f.get("setup") && !f.get("code")) return;
+    setSetup((s) => ({ ...s, setup_token: f.get("setup") || "", college_code: f.get("code") || "", college_name: f.get("college") || "", admin_name: f.get("name") || "", admin_office: f.get("office") || s.admin_office }));
+    setOpenSetup(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [setupErr, setSetupErr] = useState("");
   const [newToken, setNewToken] = useState("");
   return (
@@ -115,7 +147,7 @@ function SignIn({ error, onToken }: { error: string; onToken: (t: string) => voi
           </div>
         </form>
 
-        <details style={{ marginTop: 30 }}>
+        <details style={{ marginTop: 30 }} open={openSetup} onToggle={(e) => setOpenSetup((e.currentTarget as HTMLDetailsElement).open)}>
           <summary style={{ fontWeight: 800, cursor: "pointer", minHeight: 44 }}>Setting up Saathi Campus for the first time?</summary>
           {newToken ? (
             <div className="ok-box">
@@ -130,7 +162,7 @@ function SignIn({ error, onToken }: { error: string; onToken: (t: string) => voi
               onSubmit={async (e) => {
                 e.preventDefault();
                 try {
-                  const r = await api("/api/setup/bootstrap", { json: setup });
+                  const r = await api("/api/setup/bootstrap", { json: { ...setup, setup_token: setup.setup_token || undefined } });
                   setNewToken(r.admin_token);
                 } catch (err) {
                   setSetupErr(errText(err));
@@ -145,6 +177,8 @@ function SignIn({ error, onToken }: { error: string; onToken: (t: string) => voi
               <input id="an" type="text" value={setup.admin_name} onChange={(e) => setSetup({ ...setup, admin_name: e.target.value })} required />
               <label htmlFor="ao">Your office (shown to students as who approved a notice)</label>
               <input id="ao" type="text" value={setup.admin_office} onChange={(e) => setSetup({ ...setup, admin_office: e.target.value })} />
+              <label htmlFor="st">Setup token (only if the person who deployed the app set one)</label>
+              <input id="st" type="password" autoComplete="off" value={setup.setup_token} onChange={(e) => setSetup({ ...setup, setup_token: e.target.value })} />
               {setupErr ? <p className="notice-box" role="alert">{setupErr}</p> : null}
               <div className="row">
                 <button className="btn primary" type="submit">
