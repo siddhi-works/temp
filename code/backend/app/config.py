@@ -44,7 +44,8 @@ class Settings(BaseSettings):
 
     # --- Limits (protect budget and the server) --------------------------
     max_upload_mb: int = 15
-    max_pdf_pages: int = 6
+    max_pdf_pages: int = 10  # scanned pages: each one is paid OCR and slow
+    max_text_pdf_pages: int = 40  # PDFs that already contain text are read for free, so they can be longer
     # Read a PDF's own text instead of paying for OCR when it has a clean text layer.
     pdf_text_layer: bool = True
     snap_max_side_px: int = 1600  # board photos are read at this size; larger costs time, not accuracy

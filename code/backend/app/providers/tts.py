@@ -143,6 +143,18 @@ def _voice_id(engine: str) -> str:
     return f"{engine}:{s.sarvam_tts_model}:{s.sarvam_tts_speaker}" if engine == "sarvam-bulbul" else engine
 
 
+async def speak_uncached(text: str, lang: str) -> bytes | None:
+    """Audio for text that may be personal: returned to the caller and never stored or cached. None if every engine fails."""
+    for name, fn, _engine in TTS_CHAIN:
+        if not breaker(name).allow():
+            continue
+        try:
+            return await fn(text, lang)
+        except ProviderError as exc:
+            log.warning("TTS via %s failed: %s", name, exc)
+    return None
+
+
 async def synthesize(text: str, lang: str) -> TtsResult:
     """Return stored audio for this text, generating it on first use."""
     errors: list[str] = []

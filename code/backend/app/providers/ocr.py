@@ -174,14 +174,16 @@ def pdf_text_layer(doc: PreparedDocument) -> OcrResult | None:
 OCR_CHAIN = [("sarvam", sarvam_ocr), ("gemini", gemini_ocr)]
 
 
-async def run_ocr(doc: PreparedDocument, lang: str = "mr", prefer: str | None = None) -> OcrResult:
+async def run_ocr(doc: PreparedDocument, lang: str = "mr", prefer: str | None = None, cache: bool = True) -> OcrResult:
+    """cache=False: nothing about this file is read from or written to the database (used for students' own reads)."""
     if (layer := pdf_text_layer(doc)) is not None:
         return layer
     key = sha256_bytes(doc.data)
-    async with sessionmaker()() as s:
-        hit = await s.scalar(select(OcrCache).where(OcrCache.sha256 == key))
-        if hit:
-            return OcrResult(text=hit.text, engine=hit.engine, pages=hit.pages, cached=True)
+    if cache:
+        async with sessionmaker()() as s:
+            hit = await s.scalar(select(OcrCache).where(OcrCache.sha256 == key))
+            if hit:
+                return OcrResult(text=hit.text, engine=hit.engine, pages=hit.pages, cached=True)
 
     errors: list[str] = []
     any_retryable = False
@@ -198,11 +200,12 @@ async def run_ocr(doc: PreparedDocument, lang: str = "mr", prefer: str | None = 
             errors.append(str(exc))
             any_retryable = any_retryable or exc.retryable
             continue
-        async with sessionmaker()() as s:
-            s.add(OcrCache(sha256=key, engine=result.engine, text=result.text, pages=result.pages))
-            try:
-                await s.commit()
-            except Exception:
-                await s.rollback()
+        if cache:
+            async with sessionmaker()() as s:
+                s.add(OcrCache(sha256=key, engine=result.engine, text=result.text, pages=result.pages))
+                try:
+                    await s.commit()
+                except Exception:
+                    await s.rollback()
         return result
     raise ProviderError("ocr", "all OCR providers failed: " + " | ".join(errors), retryable=any_retryable)

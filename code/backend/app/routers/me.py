@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import re
 from datetime import date
 
@@ -18,14 +19,14 @@ from ..models import PersonalDeadline, PushSubscription, Snap, Student
 from ..pipeline import campus
 from ..pipeline.buzz import BUZZ_TYPES, catalog, valid_pattern
 from ..pipeline.dates import find_dates, first_title_line, rule_based_actions, speak_date, verify_action
+from ..pipeline.profile import parse_profile, rule_based_personal, verify_personal
 from ..pipeline.steps import today_local
 from ..providers.base import ProviderError
 from ..providers.llm import gemini_extract
 from ..providers.media import prepare_document, sniff_audio, sniff_mime
-from ..providers.ocr import run_ocr
+from ..providers.ocr import pdf_text_layer, run_ocr
 from ..providers.stt import transcribe
-from ..providers.tts import synthesize
-from ..serializers import media_url
+from ..providers.tts import speak_uncached
 from ..security import verify_student_token
 from ..storage import get_storage
 
@@ -136,6 +137,24 @@ PARTIAL = {
 }
 
 
+PERSONAL_HEAD = {"en": "For you:", "hi": "आपके लिए:", "mr": "तुमच्यासाठी:"}
+PERSONAL_NONE = {
+    "en": "I could not find anything in this notice that is specifically for you.",
+    "hi": "मुझे इस सूचना में आपके लिए खास कुछ नहीं मिला।",
+    "mr": "मला या सूचनेत तुमच्यासाठी खास काही सापडले नाही.",
+}
+PERSONAL_CHECK = {
+    "en": "Please double-check this on the notice itself.",
+    "hi": "कृपया सूचना में खुद भी जाँच लें।",
+    "mr": "कृपया सूचनेत स्वतः तपासून घ्या.",
+}
+PERSONAL_RULE = {
+    "en": "I found a line with your details:",
+    "hi": "मुझे आपके विवरण वाली यह पंक्ति मिली:",
+    "mr": "मला तुमचे तपशील असलेली ही ओळ सापडली:",
+}
+
+
 def _plain_text(text: str) -> str:
     """Scanned tables arrive as HTML. Turn cells into comma-separated speech and drop markup, so nothing reads '<td>' aloud."""
     t = re.sub(r"</t[dh]\s*>", ", ", text, flags=re.I)
@@ -147,8 +166,22 @@ def _plain_text(text: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
-def _first_pages(data: bytes, limit: int) -> tuple[bytes, tuple[int, int] | None]:
-    """Long PDFs: keep the first `limit` pages so the student still hears the start of the notice."""
+def _has_text_layer(reader) -> bool:
+    """Sample first, middle and last page: a PDF exported from Word or PowerPoint has real text on every page, a scan has none."""
+    n = len(reader.pages)
+    try:
+        for i in sorted({0, n // 2, n - 1}):
+            t = reader.pages[i].extract_text() or ""
+            if len(t.strip()) < 150 or "(cid:" in t:
+                return False
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def _first_pages(data: bytes, cfg, force_scan: bool = False) -> tuple[bytes, tuple[int, int] | None, int]:
+    """Smarter page limit. Scanned pages are paid OCR, so they are capped (MAX_PDF_PAGES). PDFs that already contain
+    text are read for free, so they may be longer (MAX_TEXT_PDF_PAGES). Returns (pdf, (pages read, pages in file) if cut, limit)."""
     import io
 
     from pypdf import PdfReader, PdfWriter
@@ -158,18 +191,36 @@ def _first_pages(data: bytes, limit: int) -> tuple[bytes, tuple[int, int] | None
         if reader.is_encrypted:
             raise AppError("This PDF is password protected, so I cannot read it. Please send an unlocked copy.", code="pdf_locked", status_code=415)
         total = len(reader.pages)
+        limit = cfg.max_pdf_pages
+        if not force_scan and total > limit and _has_text_layer(reader):
+            limit = cfg.max_text_pdf_pages
         if total <= limit:
-            return data, None
+            return data, None, limit
         writer = PdfWriter()
         for page in reader.pages[:limit]:
             writer.add_page(page)
         out = io.BytesIO()
         writer.write(out)
-        return out.getvalue(), (limit, total)
+        return out.getvalue(), (limit, total), limit
     except AppError:
         raise
     except Exception:  # noqa: BLE001  (damaged: let prepare_document report it)
-        return data, None
+        return data, None, cfg.max_pdf_pages
+
+
+def _prepare(raw: bytes, cfg):
+    """Returns (document, truncation info, free text layer or None). Cost and time stay bounded for any upload."""
+    data, truncated, limit = raw, None, cfg.max_pdf_pages
+    if sniff_mime(raw) == "application/pdf":
+        data, truncated, limit = _first_pages(raw, cfg)
+    doc = prepare_document(data, max_pages=limit, max_side=cfg.max_image_side_px)
+    layer = None
+    if limit > cfg.max_pdf_pages:
+        layer = pdf_text_layer(doc)
+        if layer is None:  # looked like text but is not clean: treat it as a scan so cost stays capped
+            data, truncated, limit = _first_pages(raw, cfg, force_scan=True)
+            doc = prepare_document(data, max_pages=limit, max_side=cfg.max_image_side_px)
+    return doc, truncated, layer
 
 
 _READ_SLOTS = asyncio.Semaphore(2)  # the free host has little memory: at most two notices are processed at once, others wait their turn
@@ -180,9 +231,11 @@ async def read_notice(
     request: Request,
     file: UploadFile = File(...),
     lang: str = Form("en"),
+    profile: str | None = Form(None),
     student: Student = Depends(current_student),
 ):
-    """Read any notice (photo or PDF) aloud. Nothing is published or shared; dates are checked against the scan."""
+    """Read any notice (photo or PDF) aloud. Nothing is published, shared or stored; dates are checked against the scan.
+    `profile` (optional JSON, kept only on the student's phone) lets the answer say what applies to that student."""
     from .public import rate_limit
 
     rate_limit(request, 6)
@@ -195,17 +248,14 @@ async def read_notice(
     if len(data) < 200:
         raise AppError("That file looks empty. Please choose the notice again.", code="empty_file", status_code=400)
     async with _READ_SLOTS:
-        return await _read_notice(data, lang)
+        return await _read_notice(data, lang, parse_profile(profile))
 
 
-async def _read_notice(data: bytes, lang: str) -> dict:
+async def _read_notice(data: bytes, lang: str, prof=None) -> dict:
     cfg = get_settings()
-    truncated: tuple[int, int] | None = None  # (pages read, pages in file)
-    if sniff_mime(data) == "application/pdf":
-        data, truncated = _first_pages(data, cfg.max_pdf_pages)
     try:
-        doc = prepare_document(data, max_pages=cfg.max_pdf_pages, max_side=cfg.max_image_side_px)
-        ocr = await run_ocr(doc, "mr")
+        doc, truncated, layer = _prepare(data, cfg)
+        ocr = layer or await run_ocr(doc, "mr", cache=False)  # cache=False: the notice text is never saved
     except AppError:
         raise
     except ProviderError as exc:
@@ -217,11 +267,18 @@ async def _read_notice(data: bytes, lang: str) -> dict:
 
     ref = today_local()
     image = doc.data if doc.mime.startswith("image/") else None
+    # Tables and date sheets: let the vision model see the page itself (photos always; short PDFs up to 4 pages).
+    has_table = "<table" in ocr.text.lower()
+    visual = image if image is not None else (doc.data if doc.mime == "application/pdf" and doc.pages <= 4 and has_table else None)
     if len(ocr.text.strip()) < 10 and image is None:
         raise AppError("I could not find any text in that file. It may be blank or too faint. Please try a clearer scan.", code="no_text", status_code=422)
+    ex = None
     try:
         # Hard time limit: the host cuts requests near 100 seconds, so a slow AI answer must fall back to the plain text.
-        ex = await asyncio.wait_for(gemini_extract(ocr.text, image=image, image_mime=doc.mime if image else None, today=ref.isoformat()), timeout=40)
+        ex = await asyncio.wait_for(
+            gemini_extract(ocr.text, image=visual, image_mime=doc.mime if visual else None, today=ref.isoformat(), profile=prof, lang=lang, force_image=has_table),
+            timeout=40,
+        )
         title, is_notice, legibility = ex.title, ex.is_notice, ex.legibility
         summary = getattr(ex.summaries, lang) or ex.summaries.en
         raw_actions = [a.model_dump() for a in ex.actions]
@@ -256,20 +313,35 @@ async def _read_notice(data: bytes, lang: str) -> dict:
         if f.value not in scan_dates or (f.weekday_written is not None and f.weekday_written != f.value.weekday()):
             needs_check = True
 
+    # Personal insight: only claims that are really in the scan AND really about this student are spoken.
+    personal, personal_spoken = None, ""
+    if prof is not None and is_notice:
+        ai = getattr(ex, "personal", None)
+        matches = verify_personal(ai.matches, ocr.text, prof) if ai is not None else []
+        by_rule = False
+        if not matches:
+            matches, by_rule = rule_based_personal(ocr.text, prof), True
+        if not matches:
+            personal_spoken = PERSONAL_NONE[lang]
+        elif by_rule:
+            personal_spoken = f"{PERSONAL_RULE[lang]} " + " ".join(m.quote[:220] + "." for m in matches[:2]) + f" {PERSONAL_CHECK[lang]}"
+        else:
+            personal_spoken = f"{PERSONAL_HEAD[lang]} " + " ".join(f"{m.what}: {m.detail}." for m in matches[:3]) + f" {PERSONAL_CHECK[lang]}"
+        personal = {
+            "found": bool(matches),
+            "matches": [{"what": m.what, "detail": m.detail, "quote": m.quote, "basis": m.basis} for m in matches],
+        }
+
     if not is_notice:
         spoken = NOT_NOTICE[lang]
     else:
-        spoken = summary
+        spoken = f"{personal_spoken} {summary}".strip()
         if needs_check or legibility != "good":
             spoken = f"{spoken} {CAUTION[lang]}"
     if truncated:
         spoken = f"{spoken} {PARTIAL[lang].format(n=truncated[0], total=truncated[1])}"
-    audio_url = None
-    try:
-        tts = await synthesize(spoken, lang)
-        audio_url = media_url(tts.audio_key)
-    except ProviderError:
-        pass  # the text is still returned; the page can read it with the phone's own voice
+    # Spoken here, returned inside the answer and never stored: personal details must not end up in a cache or a file.
+    mp3 = await speak_uncached(spoken, lang)
     return {
         "title": title,
         "is_notice": is_notice,
@@ -278,7 +350,11 @@ async def _read_notice(data: bytes, lang: str) -> dict:
         "legibility": legibility,
         "actions": actions,
         "needs_check": needs_check,
-        "audio_url": audio_url,
+        "personal": personal,
+        "audio_b64": base64.b64encode(mp3).decode() if mp3 else None,
+        "audio_mime": "audio/mpeg",
+        "audio_url": None,
+        "pages_read": truncated[0] if truncated else getattr(ocr, "pages", None),
     }
 
 

@@ -165,6 +165,33 @@ function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: strin
   const langRef = useRef(lang);
   langRef.current = lang;
 
+  // "My details" never leave this phone except inside the one request that reads a notice; the server does not keep them.
+  const emptyProfile = { name: "", course: "", division: "", roll_no: "", batch: "", extra: "" };
+  const [profile, setProfile] = useState(emptyProfile);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("saathi_profile");
+      if (raw) setProfile({ ...emptyProfile, ...JSON.parse(raw) });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const editProfile = (k: keyof typeof emptyProfile, v: string) => {
+    const next = { ...profileRef.current, [k]: v };
+    setProfile(next);
+    try {
+      localStorage.setItem("saathi_profile", JSON.stringify(next));
+    } catch {}
+  };
+  const forgetProfile = () => {
+    setProfile(emptyProfile);
+    try {
+      localStorage.removeItem("saathi_profile");
+    } catch {}
+    setStatus({ text: "Your details were removed from this phone.", tone: "ok" });
+  };
+
   const send = useCallback(
     async (file: File) => {
       setBusy(true);
@@ -175,6 +202,7 @@ function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: strin
         const f = new FormData();
         f.append("file", small, small.name || "notice");
         f.append("lang", langRef.current);
+        if (Object.values(profileRef.current).some((v) => v.trim())) f.append("profile", JSON.stringify(profileRef.current));
         const r = await api("/api/me/read", { token, form: f, timeoutMs: 150000 });
         setRes(r);
         setStatus({ text: "" });
@@ -213,24 +241,14 @@ function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: strin
   // Download the whole clip first, then play it from memory. Streaming over a weak connection can stop after a second.
   const [audio, setAudio] = useState<string | undefined>();
   useEffect(() => {
-    const url = rel(res?.audio_url);
     setAudio(undefined);
-    if (!url) return;
-    let objectUrl: string | undefined;
-    let cancelled = false;
-    fetch(url)
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("audio"))))
-      .then((b) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(b);
-        setAudio(objectUrl);
-      })
-      .catch(() => !cancelled && setAudio(url));
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [res?.audio_url]);
+    if (!res?.audio_b64) return;
+    // The voice arrives inside the answer and is never stored on the server.
+    const bytes = Uint8Array.from(atob(res.audio_b64), (c) => c.charCodeAt(0));
+    const objectUrl = URL.createObjectURL(new Blob([bytes], { type: res.audio_mime || "audio/mpeg" }));
+    setAudio(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [res?.audio_b64, res?.audio_mime]);
   return (
     <section id="read" className="feature" aria-labelledby="read-h">
       <h2 id="read-h">Read a notice to me</h2>
@@ -241,6 +259,31 @@ function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: strin
           <option key={v} value={v} lang={v}>{n}</option>
         ))}
       </select>
+      <details style={{ margin: "12px 0" }}>
+        <summary>My details (optional): get what applies to you</summary>
+        <p className="muted">
+          Saved only on this phone. They are sent with a notice so Saathi can find your class, seat or roll number, and the server does
+          not keep them.
+        </p>
+        {(
+          [
+            ["name", "Name"],
+            ["course", "Class, for example SY B.Com"],
+            ["division", "Division"],
+            ["roll_no", "Roll, seat or PRN number"],
+            ["batch", "Batch"],
+            ["extra", "Anything else, for example OBC scholarship"],
+          ] as const
+        ).map(([k, label]) => (
+          <div key={k}>
+            <label htmlFor={`prof-${k}`}>{label}</label>
+            <input id={`prof-${k}`} type="text" autoComplete="off" maxLength={k === "extra" ? 120 : 60} value={profile[k]} onChange={(e) => editProfile(k, e.target.value)} />
+          </div>
+        ))}
+        <p>
+          <button type="button" className="btn" onClick={forgetProfile}>Forget my details</button>
+        </p>
+      </details>
       <label className="btn yellow wide" htmlFor="read-file" style={{ display: "block", textAlign: "center", marginTop: 12 }}>
         {busy ? "Reading…" : "Choose a notice (photo or PDF)"}
       </label>
@@ -260,7 +303,24 @@ function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: strin
       {res ? (
         <div>
           <h3 ref={headRef} tabIndex={-1}>{res.title || "Notice"}</h3>
-          {res.audio_url && !audio ? <p className="muted" role="status">Loading the voice…</p> : null}
+          {res.personal ? (
+            <section aria-labelledby="for-you-h">
+              <h3 id="for-you-h">For you</h3>
+              {res.personal.found ? (
+                <ul>
+                  {res.personal.matches.map((m: any, i: number) => (
+                    <li key={i}>
+                      <strong>{m.what}:</strong> {m.detail}
+                      <span className="muted" style={{ display: "block" }}>Found in the notice ({m.basis}): {m.quote}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>I could not find anything in this notice that is specifically for you.</p>
+              )}
+              <p className="muted">Checked against the scan. Please double-check on the notice itself.</p>
+            </section>
+          ) : null}
           {audio ? <audio controls preload="auto" src={audio} aria-label="Spoken notice" style={{ width: "100%" }} /> : null}
           <p lang={res.lang}>{res.spoken_text}</p>
           <button className="btn" onClick={() => readAloud(res.spoken_text, { en: "en-IN", hi: "hi-IN", mr: "mr-IN" }[res.lang as string] || "en-IN")}>
