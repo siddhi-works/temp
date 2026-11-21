@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     storage_dir: Path = Path("./storage")
 
     # Public-deploy guards. If set, first-time setup needs this token, and joining needs this code. Empty = open (local use).
+    # Tried in order when the main Gemini model is out of quota (429) or overloaded (503). Each model has its own free quota.
+    gemini_fallback_models: str = "gemini-3.1-flash-lite"
+    # Extra Google AI Studio keys (ideally from different Google accounts/projects: quota is per project). Tried when one is out of quota.
+    gemini_api_key_2: str = ""
+    gemini_api_key_3: str = ""
     setup_token: str = ""
     demo_access_code: str = ""
 

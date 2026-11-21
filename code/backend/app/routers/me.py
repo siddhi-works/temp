@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import re
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
@@ -11,11 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..db import get_session
-from ..errors import AppError, NotFound
+from ..errors import AppError, NotFound, PermanentError
 from ..models import PersonalDeadline, PushSubscription, Snap, Student
 from ..pipeline import campus
 from ..pipeline.buzz import BUZZ_TYPES, catalog, valid_pattern
-from ..pipeline.dates import speak_date, verify_action
+from ..pipeline.dates import find_dates, first_title_line, rule_based_actions, speak_date, verify_action
 from ..pipeline.steps import today_local
 from ..providers.base import ProviderError
 from ..providers.llm import gemini_extract
@@ -122,6 +124,57 @@ NOT_NOTICE = {
 }
 
 
+FALLBACK_INTRO = {
+    "en": "I could not summarise this notice, so here is the start of its text.",
+    "hi": "मैं इस सूचना का सार नहीं बना सका, इसलिए इसका शुरुआती पाठ पढ़ रहा हूँ।",
+    "mr": "मला या सूचनेचा सारांश करता आला नाही, म्हणून तिचा सुरुवातीचा मजकूर वाचत आहे.",
+}
+PARTIAL = {
+    "en": "This file has {total} pages. I read only the first {n}.",
+    "hi": "इस फ़ाइल में {total} पन्ने हैं। मैंने सिर्फ़ पहले {n} पढ़े हैं।",
+    "mr": "या फाईलमध्ये {total} पाने आहेत. मी फक्त पहिली {n} वाचली आहेत.",
+}
+
+
+def _plain_text(text: str) -> str:
+    """Scanned tables arrive as HTML. Turn cells into comma-separated speech and drop markup, so nothing reads '<td>' aloud."""
+    t = re.sub(r"</t[dh]\s*>", ", ", text, flags=re.I)
+    t = re.sub(r"</tr\s*>|<br\s*/?>", ". ", t, flags=re.I)
+    t = re.sub(r"<[^>]*>?", " ", t)  # tags, including ones whose closing '>' was lost
+    t = re.sub(r"[#*|_`~]+", " ", t)
+    t = re.sub(r"(,\s*){2,}", ", ", t)
+    t = re.sub(r"(\.\s*){2,}", ". ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _first_pages(data: bytes, limit: int) -> tuple[bytes, tuple[int, int] | None]:
+    """Long PDFs: keep the first `limit` pages so the student still hears the start of the notice."""
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            raise AppError("This PDF is password protected, so I cannot read it. Please send an unlocked copy.", code="pdf_locked", status_code=415)
+        total = len(reader.pages)
+        if total <= limit:
+            return data, None
+        writer = PdfWriter()
+        for page in reader.pages[:limit]:
+            writer.add_page(page)
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue(), (limit, total)
+    except AppError:
+        raise
+    except Exception:  # noqa: BLE001  (damaged: let prepare_document report it)
+        return data, None
+
+
+_READ_SLOTS = asyncio.Semaphore(2)  # the free host has little memory: at most two notices are processed at once, others wait their turn
+
+
 @router.post("/read")
 async def read_notice(
     request: Request,
@@ -138,45 +191,79 @@ async def read_notice(
     limit = cfg.max_upload_mb * 1024 * 1024
     data = await file.read(limit + 1)
     if len(data) > limit:
-        raise AppError("That file is too large.", code="file_too_large", status_code=413)
+        raise AppError(f"That file is larger than {cfg.max_upload_mb} MB. Please send a smaller one.", code="file_too_large", status_code=413)
+    if len(data) < 200:
+        raise AppError("That file looks empty. Please choose the notice again.", code="empty_file", status_code=400)
+    async with _READ_SLOTS:
+        return await _read_notice(data, lang)
+
+
+async def _read_notice(data: bytes, lang: str) -> dict:
+    cfg = get_settings()
+    truncated: tuple[int, int] | None = None  # (pages read, pages in file)
+    if sniff_mime(data) == "application/pdf":
+        data, truncated = _first_pages(data, cfg.max_pdf_pages)
     try:
         doc = prepare_document(data, max_pages=cfg.max_pdf_pages, max_side=cfg.max_image_side_px)
         ocr = await run_ocr(doc, "mr")
-        image = doc.data if doc.mime.startswith("image/") else None
-        ex = await gemini_extract(ocr.text, image=image, image_mime=doc.mime if image else None, today=today_local().isoformat())
     except AppError:
         raise
     except ProviderError as exc:
         raise AppError("I could not read that file just now. Please try again in a minute.", code="read_failed", status_code=502) from exc
+    except PermanentError as exc:  # already written for people, e.g. "This file is not a PDF or photo"
+        raise AppError(str(exc), code=getattr(exc, "code", "unsupported_file"), status_code=415) from exc
     except Exception as exc:  # noqa: BLE001
-        if getattr(exc, "code", None) == "unsupported_file":
-            raise AppError(str(exc), code="unsupported_file", status_code=415) from exc
         raise AppError("I could not read that file. Please try a clearer photo or PDF.", code="read_failed", status_code=502) from exc
 
     ref = today_local()
+    image = doc.data if doc.mime.startswith("image/") else None
+    if len(ocr.text.strip()) < 10 and image is None:
+        raise AppError("I could not find any text in that file. It may be blank or too faint. Please try a clearer scan.", code="no_text", status_code=422)
+    try:
+        # Hard time limit: the host cuts requests near 100 seconds, so a slow AI answer must fall back to the plain text.
+        ex = await asyncio.wait_for(gemini_extract(ocr.text, image=image, image_mime=doc.mime if image else None, today=ref.isoformat()), timeout=40)
+        title, is_notice, legibility = ex.title, ex.is_notice, ex.legibility
+        summary = getattr(ex.summaries, lang) or ex.summaries.en
+        raw_actions = [a.model_dump() for a in ex.actions]
+    except Exception as exc:  # noqa: BLE001  (Gemini busy, or its answer was cut off on a long document)
+        if not ocr.text.strip():
+            raise AppError("I could not read any text in that file. Please try a clearer photo or PDF.", code="read_failed", status_code=502) from exc
+        # Fallback: the scan was read, so speak the start of the text itself rather than failing.
+        title, is_notice, legibility = first_title_line(ocr.text), True, "partial"
+        summary = FALLBACK_INTRO[lang] + " " + _plain_text(ocr.text)[:600]
+        raw_actions = rule_based_actions(ocr.text, ref)
+
     actions, needs_check = [], False
-    for a in ex.actions:
-        v = verify_action(due_date=a.due_date, due_time=a.due_time, amount=a.amount, source_quote=a.source_quote, ocr_text=ocr.text, ref=ref)
+    for a in raw_actions:
+        v = verify_action(due_date=a.get("due_date"), due_time=a.get("due_time"), amount=a.get("amount"), source_quote=a.get("source_quote"), ocr_text=ocr.text, ref=ref)
         needs_check = needs_check or v.status != "verified"
         actions.append(
             {
-                "kind": a.kind,
-                "label": a.label,
-                "due_date": a.due_date,
-                "date_spoken": speak_date(date.fromisoformat(a.due_date)) if a.due_date and v.status == "verified" else None,
-                "due_time": a.due_time,
-                "venue": a.venue,
+                "kind": a.get("kind"),
+                "label": a.get("label"),
+                "due_date": a.get("due_date"),
+                "date_spoken": speak_date(date.fromisoformat(a["due_date"])) if a.get("due_date") and v.status == "verified" else None,
+                "due_time": a.get("due_time"),
+                "venue": a.get("venue"),
                 "status": v.status,
                 "reasons": v.reasons,
             }
         )
 
-    if not ex.is_notice:
+    # The spoken summary is AI text too: any date in it must exist in the scan, and any weekday must match its date.
+    scan_dates = {f.value for f in find_dates(ocr.text, ref)} | {f.alt_value for f in find_dates(ocr.text, ref) if f.alt_value}
+    for f in find_dates(summary, ref):
+        if f.value not in scan_dates or (f.weekday_written is not None and f.weekday_written != f.value.weekday()):
+            needs_check = True
+
+    if not is_notice:
         spoken = NOT_NOTICE[lang]
     else:
-        spoken = getattr(ex.summaries, lang) or ex.summaries.en
-        if needs_check or ex.legibility != "good":
+        spoken = summary
+        if needs_check or legibility != "good":
             spoken = f"{spoken} {CAUTION[lang]}"
+    if truncated:
+        spoken = f"{spoken} {PARTIAL[lang].format(n=truncated[0], total=truncated[1])}"
     audio_url = None
     try:
         tts = await synthesize(spoken, lang)
@@ -184,11 +271,11 @@ async def read_notice(
     except ProviderError:
         pass  # the text is still returned; the page can read it with the phone's own voice
     return {
-        "title": ex.title,
-        "is_notice": ex.is_notice,
+        "title": title,
+        "is_notice": is_notice,
         "lang": lang,
         "spoken_text": spoken,
-        "legibility": ex.legibility,
+        "legibility": legibility,
         "actions": actions,
         "needs_check": needs_check,
         "audio_url": audio_url,

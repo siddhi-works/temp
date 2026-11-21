@@ -74,6 +74,7 @@ TIME_RE = re.compile(
 
 def normalize(text: str) -> str:
     text = text.translate(DEVANAGARI_DIGITS)
+    text = re.sub(r"</?[a-zA-Z][^>]*>?", " ", text)  # OCR returns scanned tables as HTML (<td>, <br/>); compare the words, not the markup
     text = text.replace("‌", "").replace("‍", "")  # zero-width joiners from OCR
     return re.sub(r"\s+", " ", text).strip().lower()
 
