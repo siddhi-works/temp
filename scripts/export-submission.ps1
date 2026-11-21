@@ -16,7 +16,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$target = Join-Path $Dest $SubFolder
+# Resolve to a full path first: a relative "." must mean the folder you ran this from, not the project folder.
+if (-not (Test-Path -LiteralPath $Dest)) { throw "Destination folder not found: $Dest" }
+$Dest = (Resolve-Path -LiteralPath $Dest).Path
+$target = if ($SubFolder -in @("", ".")) { $Dest } else { Join-Path $Dest $SubFolder }
 
 Push-Location $root
 try {
