@@ -1,6 +1,6 @@
 "use client";
 
-/** About page: what Saathi does, what it stores, which AI tools it uses, and its accessibility statement (GIGW 3.0 expects one). */
+/** About page: what Samyukta does, what it stores, which AI tools it uses, and its accessibility statement (GIGW 3.0 expects one). */
 
 import { useT } from "@/lib/i18n";
 import { Screen } from "../me/Shell";
@@ -13,7 +13,7 @@ const SECTIONS: [string, string][] = [
   ["ab_limits_h", "ab_limits"],
 ];
 
-/** Plain-language statement of what Saathi does, what it stores, which AI tools it uses and how accessible it is. */
+/** Plain-language statement of what Samyukta does, what it stores, which AI tools it uses and how accessible it is. */
 export default function About() {
   const { t } = useT();
   const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL;

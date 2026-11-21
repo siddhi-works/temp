@@ -40,7 +40,7 @@ Environment variables (Render, Environment tab). Copy the values from your local
 UptimeRobot: new HTTP monitor on `https://<your-render-url>/health`, every 5 minutes.
 
 ## 5. The college side (optional, off by default)
-Saathi is student-facing, so nothing here is needed. To bring the staff desk back, set `COLLEGE_MODE=true` on Render, build with `NEXT_PUBLIC_COLLEGE_MODE=true` (a Docker build argument), and follow `docs/HANDOFF.md`, section 6.
+Samyukta is student-facing, so nothing here is needed. To bring the staff desk back, set `COLLEGE_MODE=true` on Render, build with `NEXT_PUBLIC_COLLEGE_MODE=true` (a Docker build argument), and follow `docs/HANDOFF.md`, section 6.
 
 ## 6. After a change
 Pushing to `main` redeploys in about three minutes. Check `/health`, `/me` and `/about`.

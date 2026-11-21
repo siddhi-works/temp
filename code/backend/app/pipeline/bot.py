@@ -285,7 +285,7 @@ async def handle_text(s: AsyncSession, student: Student, phone: str, text: str, 
         await reply(phone, f"Campus walkthroughs for your college: {base}/routes?c={student.college_id}" if student.college_id else "Send JOIN followed by your college code first.")
     elif kind == "help":
         if not student.college_id:
-            await reply(phone, "Welcome to Saathi Campus. Send JOIN followed by your college code (for example JOIN FERG) to get your college's notices.")
+            await reply(phone, "Welcome to Samyukta. Send JOIN followed by your college code (for example JOIN FERG) to get your college's notices.")
         else:
             await reply(phone, ("Sent the notices you missed above.\n\n" if resent else "") + t("menu", lang))
     else:

@@ -27,7 +27,7 @@ git checkout -b MolecuLens-saathi
 
 # 3. check what will be added, then commit and push
 git status
-git add saathi-campus && git commit -m "Saathi Campus by team MolecuLens" && git push -u origin MolecuLens-saathi
+git add saathi-campus && git commit -m "Samyukta by team MolecuLens" && git push -u origin MolecuLens-saathi
 ```
 
 ## Before you push, check

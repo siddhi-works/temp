@@ -1,6 +1,6 @@
 "use client";
 
-/** Landing page: one sentence on what Saathi does, one big button to open it, and a link to how it works. */
+/** Landing page: one sentence on what Samyukta does, one big button to open it, and a link to how it works. */
 
 import { useT } from "@/lib/i18n";
 import { Screen } from "./me/Shell";

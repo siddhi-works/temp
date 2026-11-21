@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # --- Core -----------------------------------------------------------
     env: str = Field("dev", description="dev | prod. prod enforces webhook signatures and secrets.")
-    app_name: str = "Saathi Campus"
+    app_name: str = "Samyukta"
     public_base_url: str = "http://localhost:8000"  # used in links sent to students
     frontend_base_url: str = "http://localhost:3000"
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     setup_token: str = ""
     demo_access_code: str = ""
 
-    # The college side (staff desk, publishing, walkthroughs, WhatsApp) is off by default: Saathi is a student-facing product.
+    # The college side (staff desk, publishing, walkthroughs, WhatsApp) is off by default: Samyukta is a student-facing product.
     # Set COLLEGE_MODE=true to mount it again. When off, none of those endpoints exist, including first-time admin setup.
     college_mode: bool = False
 

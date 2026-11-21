@@ -11,7 +11,7 @@ import SkipLink from "@/components/SkipLink";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Saathi Campus", template: "%s | Saathi Campus" },
+  title: { default: "Samyukta", template: "%s | Samyukta" },
   description: "Hear any college notice read aloud and checked, in English, Hindi and Marathi. Made for blind, low-vision and dyslexic students.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg" },

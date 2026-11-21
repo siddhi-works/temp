@@ -1,4 +1,4 @@
-"""Saathi Campus features end to end: real HTTP API, database, job queue and WhatsApp webhook.
+"""Samyukta features end to end: real HTTP API, database, job queue and WhatsApp webhook.
 External AI/WhatsApp/push services are fakes (see conftest)."""
 
 from __future__ import annotations

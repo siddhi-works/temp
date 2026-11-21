@@ -219,7 +219,7 @@ async def join(request: Request, body: JoinIn, s: AsyncSession = Depends(get_ses
     rate_limit(request, 40)  # generous: many students can share one college Wi-Fi address
     expected = get_settings().demo_access_code
     if expected and not hmac.compare_digest(expected.lower(), (body.code or "").strip().lower()):
-        raise AppError("That access code is not right. Ask the Saathi team for the code.", code="access_code_required", status_code=403)
+        raise AppError("That access code is not right. Ask the Samyukta team for the code.", code="access_code_required", status_code=403)
     lang = body.lang if body.lang in LANG_NAMES else "en"
     st = Student(phone_hash="web-" + secrets.token_hex(16), phone_enc="none", preferred_lang=lang, consent_at=utcnow(), reminders_enabled=True)
     s.add(st)

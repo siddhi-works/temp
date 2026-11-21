@@ -79,7 +79,7 @@ await keyboardWalk(page, "home", 8);
 // 2. Desk: first-time setup through the UI
 await page.goto(BASE + "/desk");
 await audit(page, "desk-signin");
-await page.getByText("Setting up Saathi Campus for the first time?").click();
+await page.getByText("Setting up Samyukta for the first time?").click();
 await page.getByLabel("College code").fill("A11Y");
 await page.getByLabel("College name").fill("Accessibility Test College");
 await page.getByLabel("Your name").fill("Test Admin");

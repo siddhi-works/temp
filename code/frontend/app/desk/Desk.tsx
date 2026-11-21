@@ -148,7 +148,7 @@ function SignIn({ error, onToken }: { error: string; onToken: (t: string) => voi
         </form>
 
         <details style={{ marginTop: 30 }} open={openSetup} onToggle={(e) => setOpenSetup((e.currentTarget as HTMLDetailsElement).open)}>
-          <summary style={{ fontWeight: 800, cursor: "pointer", minHeight: 44 }}>Setting up Saathi Campus for the first time?</summary>
+          <summary style={{ fontWeight: 800, cursor: "pointer", minHeight: 44 }}>Setting up Samyukta for the first time?</summary>
           {newToken ? (
             <div className="ok-box">
               <p>Your admin token is below. Copy it somewhere safe now: it is shown only once.</p>

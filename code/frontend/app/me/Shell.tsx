@@ -3,6 +3,7 @@
 /** Shared page frame for every student screen: top bar with language buttons, Back button, and a focused page title. */
 
 import { useEffect, useRef } from "react";
+import { useDisplay } from "@/lib/display";
 import { LANGS, useT } from "@/lib/i18n";
 import "./me.css";
 
@@ -28,7 +29,7 @@ export function TopBar() {
   const { t, lang, setLang } = useT();
   return (
     <header className="topbar">
-      <a className="brand-name" href="/me#" aria-label="Saathi, home">Saathi</a>
+      <a className="brand-name" href="/me#" aria-label="Samyukta, home">Samyukta</a>
       <div className="langs" role="group" aria-label={t("language")}>
         {LANGS.map((l) => (
           <button key={l.code} type="button" lang={l.code} aria-pressed={lang === l.code} onClick={() => setLang(l.code)}>
@@ -43,6 +44,7 @@ export function TopBar() {
 /** One screen: Back first, then a title that receives focus so the screen reader announces where you are. */
 export function Screen({ title, onBack, children }: { title: string; onBack?: () => void; children: React.ReactNode }) {
   const { t } = useT();
+  useDisplay(); // apply the colours, text size and spacing the student saved, on every screen (not only in Settings)
   const h1 = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     h1.current?.focus();
@@ -50,7 +52,7 @@ export function Screen({ title, onBack, children }: { title: string; onBack?: ()
   }, [title]);
   return (
     <div className="me">
-      <title>{`${title} | Saathi`}</title>
+      <title>{`${title} | Samyukta`}</title>
       <TopBar />
       <main id="main" className="wrap">
         {onBack ? (

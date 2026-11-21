@@ -4,7 +4,7 @@ Each entry: the decision, the alternative we rejected, and the trade-off we acce
 
 ## Product
 
-**D1. Student-first, not college-first.** Colleges will not adopt a new admin tool for a student project, so a student can use Saathi alone on day one. A college desk exists as an optional second path.
+**D1. Student-first, not college-first.** Colleges will not adopt a new admin tool for a student project, so a student can use Samyukta alone on day one. A college desk exists as an optional second path.
 *Rejected:* a dashboard the college must adopt. *Cost:* we cannot see or fix notices at the source.
 
 **D2. No accounts.** A student taps Start and gets an anonymous session. There is nothing to sign up for, remember or leak.

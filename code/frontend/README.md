@@ -1,6 +1,6 @@
-# Saathi Campus web app
+# Samyukta web app
 
-Next.js 15 frontend for the Saathi Campus backend (`../backend`). It proxies `/api`, `/media` and `/n` to the backend, so the
+Next.js 15 frontend for the Samyukta backend (`../backend`). It proxies `/api`, `/media` and `/n` to the backend, so the
 whole product runs on one domain and student links from WhatsApp open here.
 
 | Screen | Path | Who |

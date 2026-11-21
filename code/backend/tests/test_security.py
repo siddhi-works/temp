@@ -83,11 +83,11 @@ async def test_first_time_setup_needs_the_setup_token_when_one_is_set(client, mo
 
 @pytest.mark.asyncio
 async def test_joining_needs_the_access_code_when_one_is_set(client, monkeypatch):
-    monkeypatch.setenv("DEMO_ACCESS_CODE", "Saathi26")
+    monkeypatch.setenv("DEMO_ACCESS_CODE", "Samyukta26")
     config.get_settings.cache_clear()
     assert (await client.post("/api/public/join", json={"lang": "en"})).status_code == 403
     assert (await client.post("/api/public/join", json={"lang": "en", "code": "nope"})).status_code == 403
-    assert (await client.post("/api/public/join", json={"lang": "en", "code": " saathi26 "})).status_code == 201
+    assert (await client.post("/api/public/join", json={"lang": "en", "code": " samyukta26 "})).status_code == 201
 
 
 def test_production_refuses_to_start_without_real_secrets():

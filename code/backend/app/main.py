@@ -1,4 +1,4 @@
-"""Saathi Campus API: application entrypoint.
+"""Samyukta API: application entrypoint.
 
 Builds the FastAPI app, wires the routers, and adds three cross-cutting layers in one place:
 security headers, request ids for traceable logs, and a start-up check that refuses to run in
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
         worker = Worker()
         worker.start()
     app.state.worker = worker
-    log.info("Saathi Campus API ready (env=%s)", s.env)
+    log.info("Samyukta API ready (env=%s)", s.env)
     try:
         yield
     finally:
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     s = get_settings()
-    app = FastAPI(title="Saathi Campus API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Samyukta API", version="1.0.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=s.cors_list,

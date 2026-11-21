@@ -5,10 +5,10 @@ Numbers marked *measured* come from our own runs on real notices; *estimated* co
 ## The product
 
 **1. Why not paste the PDF into ChatGPT or Gemini?**
-A blind student cannot operate that flow, it does not read scans in Marathi reliably, and nothing checks its dates. Saathi is one tap from the Share menu, speaks the result, and verifies every date against the scan. A confident wrong date is the dangerous failure.
+A blind student cannot operate that flow, it does not read scans in Marathi reliably, and nothing checks its dates. Samyukta is one tap from the Share menu, speaks the result, and verifies every date against the scan. A confident wrong date is the dangerous failure.
 
 **2. How do you stop the AI inventing a deadline?**
-We treat it as untrusted. Every date, weekday, amount, time and quoted line is re-checked in code against the scan. If anything fails, Saathi still speaks but says "please confirm with the college office". (Architecture, section 3.)
+We treat it as untrusted. Every date, weekday, amount, time and quoted line is re-checked in code against the scan. If anything fails, Samyukta still speaks but says "please confirm with the college office". (Architecture, section 3.)
 
 **3. Who is it for, and who pays?**
 Blind, low-vision and dyslexic students in colleges that publish scanned notices. A Rotaract club or a college disability cell can run it: about ₹2 per notice (*estimated*: ₹0.50 per scanned page plus ₹3 per 1,000 spoken characters; text PDFs skip the scan cost).
@@ -42,7 +42,7 @@ We designed to avoid collecting personal data for reads, which is the strongest 
 ## Engineering
 
 **11. What happens when the AI is down or out of quota?**
-It happened to us during testing. Understanding fails over across keys and then to a second model; reading fails over from Sarvam to Gemini; voice from Sarvam to Google to the phone's own voice. If all AI fails, Saathi quotes the scan text and any dates it finds, flagged for checking.
+It happened to us during testing. Understanding fails over across keys and then to a second model; reading fails over from Sarvam to Gemini; voice from Sarvam to Google to the phone's own voice. If all AI fails, Samyukta quotes the scan text and any dates it finds, flagged for checking.
 
 **12. How fast is it?**
 *Measured:* about 7 to 25 seconds for a one-page notice, up to about a minute for long PDFs. A hard 40-second limit on the AI step keeps it inside the host's request limit.

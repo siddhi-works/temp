@@ -732,7 +732,7 @@ async def reply_forward(job: Job) -> None:
 
 
 # ---------------------------------------------------------------------------------------
-# 5b. Saathi Campus: Clash Radar, Exam Eve Pack, personal reminders
+# 5b. Samyukta: Clash Radar, Exam Eve Pack, personal reminders
 # ---------------------------------------------------------------------------------------
 
 

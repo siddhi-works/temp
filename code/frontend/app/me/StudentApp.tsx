@@ -56,7 +56,7 @@ export default function StudentApp() {
       saved = t0 || "";
     }
     setToken(saved);
-    // Register early so "Share -> Saathi" works even before the student turns on vibration alerts.
+    // Register early so "Share -> Samyukta" works even before the student turns on vibration alerts.
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => null);
     return () => clearDisplay();
   }, []);
@@ -611,7 +611,7 @@ function Timetable({ token }: { token: string }) {
   return (
     <section id="timetable" className="feature" aria-labelledby="tt-h">
       <h2 id="tt-h">My timetable</h2>
-      <p>Saathi uses this to tell you only about notices that clash with your own classes.</p>
+      <p>Samyukta uses this to tell you only about notices that clash with your own classes.</p>
       <div className="row">
         {batches.length ? (
           <div style={{ flex: "1 1 14rem" }}>

@@ -1,6 +1,6 @@
 # Architecture
 
-How Saathi Campus is put together, in the order a new engineer would need it.
+How Samyukta is put together, in the order a new engineer would need it.
 
 ## 1. The shape of the system
 

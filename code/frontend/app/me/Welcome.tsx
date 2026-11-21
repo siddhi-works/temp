@@ -12,17 +12,22 @@ export default function Welcome({ onToken, expired }: { onToken: (t: string) => 
   const [code, setCode] = useState("");
   const [showCode, setShowCode] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [waking, setWaking] = useState(false); // free hosting sleeps when idle; say so instead of looking frozen
   const [err, setErr] = useState("");
   const go = async () => {
     setBusy(true);
     setErr("");
+    const timer = setTimeout(() => setWaking(true), 4000);
     try {
-      const r = await api("/api/public/join", { json: { lang, code: code.trim() || undefined } });
+      const r = await api("/api/public/join", { json: { lang, code: code.trim() || undefined }, timeoutMs: 100000 });
       onToken(r.token);
     } catch (e) {
       setErr(friendlyError(e, t));
       if ((e as { code?: string })?.code === "access_code_required") setShowCode(true);
       setBusy(false);
+    } finally {
+      clearTimeout(timer);
+      setWaking(false);
     }
   };
   return (
@@ -39,7 +44,7 @@ export default function Welcome({ onToken, expired }: { onToken: (t: string) => 
           {busy ? t("starting") : t("start")}
         </button>
       </div>
-      <Status text={err} tone="error" />
+      <Status text={waking ? t("waking") : err} tone={waking ? undefined : "error"} />
       <p className="muted" style={{ marginTop: 24 }}>{t("welcome_privacy")}</p>
     </Screen>
   );

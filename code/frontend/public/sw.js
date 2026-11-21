@@ -1,9 +1,9 @@
-/* Saathi Campus service worker: shows notifications with the student's Buzz Code vibration.
+/* Samyukta service worker: shows notifications with the student's Buzz Code vibration.
    Vibration patterns only take effect on Android (Chrome); other platforms show a normal notification. */
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
-// Share target: "Share -> Saathi" from WhatsApp, Gallery or Files. The file is parked in a cache and the page picks it up.
+// Share target: "Share -> Samyukta" from WhatsApp, Gallery or Files. The file is parked in a cache and the page picks it up.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "POST" || url.pathname !== "/share-target") return;
@@ -26,8 +26,8 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { title: "Saathi Campus", body: event.data && event.data.text() }; }
-  const title = data.title || "Saathi Campus";
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { title: "Samyukta", body: event.data && event.data.text() }; }
+  const title = data.title || "Samyukta";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",

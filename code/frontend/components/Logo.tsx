@@ -1,4 +1,4 @@
-/** Mark: a braille cell for "s" (Saathi) on a paving-yellow tile. Decorative. */
+/** Mark: a braille cell for "s" (Samyukta) on a paving-yellow tile. Decorative. */
 export default function Logo() {
   return (
     <svg className="brand-mark" viewBox="0 0 30 30" aria-hidden="true" focusable="false">

@@ -9,7 +9,7 @@ export default function Header({ who, wide = false }: { who?: string | null; wid
       <div className={wide ? "wrap-wide" : "wrap"}>
         <Link className="brand" href="/">
           <Logo />
-          Saathi Campus
+          Samyukta
         </Link>
         {who ? <span className="who">{who}</span> : null}
       </div>

@@ -8,7 +8,7 @@ const IMG = process.env.IMG;
 const b = await chromium.launch();
 const page = await (await b.newContext({ viewport: { width: 412, height: 915 } })).newPage();
 await page.goto(BASE + "/desk");
-await page.getByText("Setting up Saathi Campus for the first time?").click();
+await page.getByText("Setting up Samyukta for the first time?").click();
 await page.getByLabel("College code").fill("PERF");
 await page.getByLabel("College name").fill("Perf College");
 await page.getByLabel("Your name").fill("Admin");

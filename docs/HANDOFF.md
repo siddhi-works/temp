@@ -4,7 +4,7 @@ Written for a teammate who has not seen the project. Read this first, then `READ
 
 ## 1. What this is, in three sentences
 
-Saathi Campus reads a photo or PDF of a college notice aloud in English, Hindi or Marathi for blind, low-vision and dyslexic students, and checks every date against the scan before saying it. A student can also save their class on their own phone to hear only what applies to them. Nothing about a read is stored. Team MolecuLens, Naya Bharat 2047 hackathon, problem 5.3.
+Samyukta reads a photo or PDF of a college notice aloud in English, Hindi or Marathi for blind, low-vision and dyslexic students, and checks every date against the scan before saying it. A student can also save their class on their own phone to hear only what applies to them. Nothing about a read is stored. Team MolecuLens, Naya Bharat 2047 hackathon, problem 5.3.
 
 ## 2. Where everything is
 
@@ -66,7 +66,7 @@ Pushing to `main` redeploys Render in about three minutes. `docs/DEPLOYMENT.md` 
 
 ## 6. The college side is switched off
 
-Saathi is a **student-facing product**: a student opens a link, taps Start, and reads notices. There is no admin or staff login in the product.
+Samyukta is a **student-facing product**: a student opens a link, taps Start, and reads notices. There is no admin or staff login in the product.
 
 The college side still exists in the code, for a future where a college wants to publish official notices with a human check (staff desk, campus walkthroughs, WhatsApp). It is behind one switch, **off by default**:
 
