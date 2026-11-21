@@ -1,17 +1,23 @@
 /* Student pages. Calm, readable, one task per screen. Colours are chosen by the student (data-look on <html>). */
 
-html:root[data-look="calm"] {
-  --paper: #f1f4f6; --ink: #1b2340; --ink-soft: #46506e; --panel: #e3e9ef; --line: #b9c3d0;
-  --paving: #ffc928; --on-paving: #1b2340; --focus: #1240ff;
-  --clash: #9b1c1c; --clash-bg: #fbe9e7; --ok: #1d6b3a; --ok-bg: #e1f2e7;
+/* Every text pair is at least 7:1 (WCAG AAA); control edges are at least 3:1. Checked with a script, see a11y-student.mjs. */
+html:root[data-look="daylight"] {
+  --paper: #faf8f5; --ink: #1e242b; --ink-soft: #3a424d; --panel: #efebe4; --line: #c9c2b6; --edge: #6b7480; --accent: #003f88;
+  --paving: #ffc928; --on-paving: #1e242b; --focus: #1240ff;
+  --clash: #7f1717; --clash-bg: #fae6e3; --ok: #0f5a33; --ok-bg: #e3f1e8;
+}
+html:root[data-look="sepia"] {
+  --paper: #f9efe3; --ink: #2b2118; --ink-soft: #47382b; --panel: #efdfcc; --line: #d2bfa6; --edge: #7a6652; --accent: #6e2d00;
+  --paving: #ffc928; --on-paving: #2b2118; --focus: #0b3fd1;
+  --clash: #7f1717; --clash-bg: #f6dcd3; --ok: #0b4a28; --ok-bg: #e3ebd9;
 }
 html:root[data-look="dark"] {
-  --paper: #12151f; --ink: #e9ecf5; --ink-soft: #bac1d6; --panel: #1b2030; --line: #3a4260;
-  --paving: #ffd34d; --on-paving: #12151f; --focus: #ffe680;
-  --clash: #ffb4ab; --clash-bg: #40130f; --ok: #9be3b1; --ok-bg: #0f3a20;
+  --paper: #141920; --ink: #f2f4f7; --ink-soft: #c9d0db; --panel: #1e2530; --line: #3a4455; --edge: #8a95a6; --accent: #8cc1ff;
+  --paving: #ffd34d; --on-paving: #141920; --focus: #ffe680;
+  --clash: #ffb4ab; --clash-bg: #40130f; --ok: #9be3b1; --ok-bg: #10331f;
 }
 html:root[data-look="contrast"] {
-  --paper: #000; --ink: #fff; --ink-soft: #fff; --panel: #000; --line: #fff;
+  --paper: #000; --ink: #fff; --ink-soft: #fff; --panel: #000; --line: #fff; --edge: #fff; --accent: #8cd0ff;
   --paving: #ffe100; --on-paving: #000; --focus: #00e5ff;
   --clash: #ff9b9b; --clash-bg: #000; --ok: #8cffa8; --ok-bg: #000;
 }
@@ -27,20 +33,21 @@ html[data-space="wide"] .me { letter-spacing: 0.06em; word-spacing: 0.2em; line-
 .me h2 { font-size: 1.45rem; line-height: 1.35; margin: 44px 0 14px; }
 .me h3 { font-size: 1.25rem; margin: 32px 0 10px; }
 .me p, .me li { max-width: 34rem; }
-.me p { margin: 0 0 16px; }
+.me p { margin: 0 0 1.5em; } /* AAA 1.4.8: paragraph spacing well above line spacing */
 .me ul { padding-left: 1.2rem; }
 .me li { margin-bottom: 14px; }
 .me .muted { color: var(--ink-soft); }
-.me a { color: var(--ink); text-underline-offset: 0.2em; }
+.me a { color: var(--accent); text-decoration: underline; text-underline-offset: 0.2em; }
 
 .me :focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
 
 .me .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 20px 6px; max-width: 36rem; margin: 0 auto; }
 .me .brand-name { display: inline-flex; align-items: center; min-height: 52px; padding: 0 10px; font-weight: 800; font-size: 1.4rem; text-decoration: none; color: var(--ink); }
-.me input.sr-only:focus-visible + label { outline: 4px solid var(--focus); outline-offset: 3px; }
+.me h1:focus, .me h2:focus { outline: none; } /* headings take focus only so a screen reader announces them; they are not controls */
+.me summary { display: flex; align-items: center; min-height: 52px; padding: 6px 4px; font-weight: 700; cursor: pointer; }
 .me .langs { display: flex; gap: 8px; }
 .me .langs button, .me .seg button {
-  min-height: 52px; min-width: 52px; padding: 8px 16px; border: 2px solid var(--line); border-radius: 12px;
+  min-height: 52px; min-width: 52px; padding: 8px 16px; border: 2px solid var(--edge); border-radius: 12px;
   background: transparent; color: var(--ink); font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer;
 }
 .me .langs button[aria-pressed="true"], .me .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
@@ -54,14 +61,14 @@ html[data-space="wide"] .me { letter-spacing: 0.06em; word-spacing: 0.2em; line-
 .me .big-btn .sub { display: block; margin-top: 2px; font-size: 1.02rem; font-weight: 400; color: var(--ink-soft); }
 .me .big-btn.main { background: var(--paving); border-color: var(--paving); color: var(--on-paving); }
 .me .big-btn.main .sub { color: var(--on-paving); }
-.me .back { display: inline-flex; align-items: center; min-height: 52px; margin: 6px 0 4px; padding: 8px 18px; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.me .back { display: inline-flex; align-items: center; min-height: 52px; margin: 6px 0 4px; padding: 8px 18px; border: 2px solid var(--edge); border-radius: 12px; background: transparent; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
 
 .me .btn { min-height: 56px; padding: 12px 22px; font-size: 1.1rem; border-radius: 14px; }
 .me label { display: block; margin: 18px 0 6px; font-weight: 700; }
 .me input[type="text"], .me input:not([type]), .me select, .me textarea {
   width: 100%; min-height: 56px; padding: 10px 14px; font: inherit; border: 2px solid var(--ink-soft); border-radius: 12px; background: var(--paper); color: var(--ink);
 }
-.me .card { border: 2px solid var(--line); border-radius: 18px; padding: 20px 22px; background: var(--panel); margin: 24px 0; }
+.me .card { border: 2px solid var(--edge); border-radius: 18px; padding: 20px 22px; background: var(--panel); margin: 24px 0; }
 .me .card h2, .me .card h3 { margin-top: 0; }
 .me .notice-box { border: 2px solid var(--clash); background: var(--clash-bg); color: var(--ink); border-radius: 14px; padding: 14px 18px; }
 .me .ok-box { border: 2px solid var(--ok); background: var(--ok-bg); color: var(--ink); border-radius: 14px; padding: 14px 18px; }

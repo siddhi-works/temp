@@ -152,15 +152,16 @@ export default function StudentApp() {
     <Screen title={t("home_title")}>
       <nav aria-label={t("home_title")} className="stack">
         {items.map(([v, label, sub, main]) => (
-          <button key={v} type="button" className={`big-btn${main ? " main" : ""}`} onClick={() => go(v)}>
+          <button key={v} type="button" className={`big-btn${main ? " main" : ""}`} aria-label={label} aria-describedby={`sub-${v}`} onClick={() => go(v)}>
             {label}
-            <span className="sub">{sub}</span>
+            <span className="sub" id={`sub-${v}`}>{sub}</span>
           </button>
         ))}
         {college ? (
           <button type="button" className="big-btn" onClick={() => go("college")}>{t("college")}</button>
         ) : null}
       </nav>
+      <p style={{ marginTop: 36 }}><a href="/about">{t("about_link")}</a></p>
     </Screen>
   );
 }
@@ -207,6 +208,7 @@ function RightNow({ token }: { token: string }) {
 /* ------------------------------------------------------------------ Verbal deadline catcher */
 
 function Catcher({ token }: { token: string }) {
+  const { t } = useT();
   const rec = useRecorder(45);
   const [pending, setPending] = useState<any>(null);
   const [status, setStatus] = useState<{ text: string; tone?: "error" | "ok" }>({ text: "" });
@@ -222,7 +224,7 @@ function Catcher({ token }: { token: string }) {
 
   const submit = async (form: FormData) => {
     setBusy(true);
-    setStatus({ text: "Listening to what you said…" });
+    setStatus({ text: t("c_listening") });
     try {
       const r = await api("/api/me/catch", { token, form, timeoutMs: 90000 });
       setPending(r);
@@ -239,7 +241,7 @@ function Catcher({ token }: { token: string }) {
     if (rec.state === "recording") {
       const blob = await rec.stop();
       if (!blob || blob.size < 800) {
-        setStatus({ text: "That was too short. Press the button, say the deadline, then press it again.", tone: "error" });
+        setStatus({ text: t("c_too_short"), tone: "error" });
         return;
       }
       const f = new FormData();
@@ -248,7 +250,7 @@ function Catcher({ token }: { token: string }) {
     } else {
       setPending(null);
       const ok = await rec.start();
-      setStatus(ok ? { text: "Recording. Say what the teacher said, then press the button again." } : { text: "The microphone is blocked. Allow it in your browser settings, or type the deadline below.", tone: "error" });
+      setStatus(ok ? { text: t("c_recording") } : { text: t("c_mic_blocked"), tone: "error" });
     }
   };
 
@@ -271,34 +273,33 @@ function Catcher({ token }: { token: string }) {
   const discard = async () => {
     await api(`/api/me/catch/${pending.id}/cancel`, { token, method: "POST" }).catch(() => null);
     setPending(null);
-    setStatus({ text: "Discarded. Nothing was saved." });
+    setStatus({ text: t("c_discarded") });
   };
 
   return (
-    <section id="catch" className="feature" aria-labelledby="catch-h">
-      <h2 id="catch-h">Catch a deadline</h2>
-      <p>When a teacher says a deadline in class, press the button and say it. You will hear the date back before anything is saved.</p>
+    <section id="catch" className="feature">
+      <p>{t("c_intro")}</p>
       {rec.state !== "unsupported" ? (
         <button className="btn yellow wide rec" aria-pressed={rec.state === "recording"} onClick={toggle} disabled={busy}>
-          {rec.state === "recording" ? `Stop and save (recording, ${rec.seconds} s)` : "Record what the teacher said"}
+          {rec.state === "recording" ? t("c_stop").replace("{n}", String(rec.seconds)) : t("c_record")}
         </button>
       ) : (
-        <p className="hint">This browser cannot record. Type the deadline instead.</p>
+        <p className="hint">{t("c_no_rec")}</p>
       )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (typed.trim().length < 3) return setStatus({ text: "Type the deadline first, for example: lab journal due next Friday.", tone: "error" });
+          if (typed.trim().length < 3) return setStatus({ text: t("c_type_first"), tone: "error" });
           const f = new FormData();
           f.append("text", typed.trim());
           submit(f);
         }}
       >
-        <label htmlFor="catch-text">Or type it</label>
-        <input id="catch-text" type="text" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Assignment 3 due next Friday" autoComplete="off" />
+        <label htmlFor="catch-text">{t("c_or_type")}</label>
+        <input id="catch-text" type="text" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("c_placeholder")} autoComplete="off" />
         <div className="row">
           <button className="btn" type="submit" disabled={busy}>
-            Check the date
+            {t("c_check")}
           </button>
         </div>
       </form>
@@ -308,18 +309,18 @@ function Catcher({ token }: { token: string }) {
           <h3 ref={readbackRef} tabIndex={-1} style={{ marginTop: 0 }}>
             {String(pending.readback).replace(/ Say YES.*$/, "")}
           </h3>
-          {pending.transcript ? <p className="small muted">I heard: &ldquo;{pending.transcript}&rdquo;</p> : null}
-          <label htmlFor="catch-date">{pending.due_date ? "Date (change it if it is wrong)" : "Date (needed)"}</label>
+          {pending.transcript ? <p className="small muted">{t("c_heard")} &ldquo;{pending.transcript}&rdquo;</p> : null}
+          <label htmlFor="catch-date">{pending.due_date ? t("c_date_change") : t("c_date_needed")}</label>
           <input id="catch-date" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-describedby="catch-date-hint" />
           <p id="catch-date-hint" className="hint">
-            {pending.due_date_spoken ? `I understood ${pending.due_date_spoken}${pending.due_time ? " at " + speakTime(pending.due_time) : ""}.` : "I could not tell the date. Pick it here."}
+            {pending.due_date_spoken ? t("c_understood").replace("{d}", pending.due_date_spoken + (pending.due_time ? ` ${t("d_at")} ${speakTime(pending.due_time)}` : "")) : t("c_unknown_date")}
           </p>
           <div className="row">
             <button className="btn primary" onClick={confirm} disabled={busy || !newDate}>
-              Save reminder
+              {t("c_save")}
             </button>
             <button className="btn" onClick={discard} disabled={busy}>
-              Discard
+              {t("c_discard")}
             </button>
           </div>
         </div>
@@ -482,6 +483,7 @@ function Boards({ token }: { token: string }) {
 /* ------------------------------------------------------------------ Deadlines */
 
 function Deadlines({ token, inbox }: { token: string; inbox: any }) {
+  const { t } = useT();
   const [mine, setMine] = useState<any[]>([]);
   const load = useCallback(() => {
     api("/api/me/deadlines", { token })
@@ -504,14 +506,13 @@ function Deadlines({ token, inbox }: { token: string; inbox: any }) {
     link: `/n/${u.notice_public_id}?t=${encodeURIComponent(token)}`,
     unconfirmed: u.verification === "needs_check",
   }));
-  const own = mine.map((d) => ({ key: "p" + d.id, label: d.label, date: d.due_date, spoken: d.due_date_spoken, time: d.due_time, from: "Your own reminder" }));
+  const own = mine.map((d) => ({ key: "p" + d.id, label: d.label, date: d.due_date, spoken: d.due_date_spoken, time: d.due_time, from: t("d_own") }));
   const all = [...college, ...own].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <section id="deadlines" className="feature" aria-labelledby="dl-h">
-      <h2 id="dl-h">Deadlines</h2>
+    <section id="deadlines" className="feature">
       {all.length === 0 ? (
-        <p className="muted">Nothing due. New deadlines from your college and the ones you catch in class appear here.</p>
+        <p className="muted">{t("d_none")}</p>
       ) : (
         <ul className="list">
           {all.map((d: any) => (
@@ -519,11 +520,11 @@ function Deadlines({ token, inbox }: { token: string; inbox: any }) {
               <span className="title">{d.label}</span>
               <br />
               {d.spoken}
-              {d.time ? ` at ${speakTime(d.time)}` : ""}
+              {d.time ? ` ${t("d_at")} ${speakTime(d.time)}` : ""}
               <br />
               <span className="small muted">
-                {d.link ? <a href={d.link}>From: {d.from}</a> : d.from}
-                {d.unconfirmed ? ". Please check this date with the office." : ""}
+                {d.link ? <a href={d.link}>{t("d_from")} {d.from}</a> : d.from}
+                {d.unconfirmed ? ". " + t("d_check_office") : ""}
               </span>
             </li>
           ))}

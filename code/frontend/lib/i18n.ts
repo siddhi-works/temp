@@ -1,6 +1,8 @@
 "use client";
 /** Tiny UI translation store: English, Hindi, Marathi. The same choice sets the voice language for notices. */
 import { useEffect, useState } from "react";
+import { EXTRA } from "./i18n-extra";
+import { MORE } from "./i18n-more";
 
 export type Lang = "en" | "hi" | "mr";
 export const LANGS: { code: Lang; name: string }[] = [
@@ -188,6 +190,20 @@ const D: Record<Lang, Record<string, string>> = {
     space_wide: "जास्त",
   },
 };
+
+for (const l of Object.keys(EXTRA) as Lang[]) Object.assign(D[l], EXTRA[l], MORE[l]);
+
+/** A friendly message in the chosen language for the errors the reading screens can meet; the server's own text is the fallback. */
+export function friendlyError(e: unknown, t: (k: string) => string): string {
+  const err = e as { code?: string; status?: number; message?: string } | null;
+  const code = err?.code || "";
+  if (err?.status === 429) return t("err_rate");
+  if (code === "network") return t("err_network");
+  if (code === "timeout") return t("err_timeout");
+  const key = `err_${code}`;
+  const msg = t(key);
+  return msg !== key ? msg : err?.message || t("err_read_failed");
+}
 
 let current: Lang = "en";
 let loaded = false;

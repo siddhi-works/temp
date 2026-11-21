@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errText, speakTime } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { api, speakTime } from "@/lib/api";
+import { friendlyError, useT } from "@/lib/i18n";
 import { shrinkImage } from "@/lib/image";
 import { Status, speakWithPhone } from "./Shell";
 
@@ -10,7 +10,16 @@ const SPEEDS = [0.8, 1, 1.25];
 
 /** Short paragraphs, one or two sentences each: much easier to follow for people with dyslexia or low vision. */
 function paragraphs(text: string): string[] {
-  const sentences = (text || "").split(/(?<=[.!?।])\s+/).filter(Boolean);
+  // A full stop ends a sentence only after a real word: not after abbreviations like "रु.", "Rs.", "Dr." or "बी.कॉम.".
+  const sentences: string[] = [];
+  let cur = "";
+  for (const tok of (text || "").split(/\s+/).filter(Boolean)) {
+    cur = cur ? `${cur} ${tok}` : tok;
+    const word = tok.replace(/[.!?।]+$/, "");
+    const ends = /[!?।]$/.test(tok) || (/\.$/.test(tok) && word.length >= 3 && !word.includes("."));
+    if (ends) { sentences.push(cur); cur = ""; }
+  }
+  if (cur) sentences.push(cur);
   const out: string[] = [];
   for (let i = 0; i < sentences.length; i += 2) out.push(sentences.slice(i, i + 2).join(" "));
   return out;
@@ -23,6 +32,7 @@ export default function ReadScreen({ token }: { token: string }) {
   const [status, setStatus] = useState<{ text: string; tone?: "error" | "ok" }>({ text: "" });
   const [audio, setAudio] = useState<string | undefined>();
   const [speed, setSpeed] = useState(1);
+  const [playing, setPlaying] = useState(false);
   const [hasDetails, setHasDetails] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -53,7 +63,7 @@ export default function ReadScreen({ token }: { token: string }) {
         setRes(await api("/api/me/read", { token, form: f, timeoutMs: 150000 }));
         setStatus({ text: "" });
       } catch (e) {
-        setStatus({ text: errText(e), tone: "error" });
+        setStatus({ text: friendlyError(e, t), tone: "error" });
       } finally {
         setBusy(false);
         if (fileRef.current) fileRef.current.value = "";
@@ -76,7 +86,7 @@ export default function ReadScreen({ token }: { token: string }) {
         window.history.replaceState(null, "", "/me#read");
         await send(new File([blob], blob.type === "application/pdf" ? "shared.pdf" : "shared.jpg", { type: blob.type }));
       } catch {
-        setStatus({ text: errText(null), tone: "error" });
+        setStatus({ text: t("err_read_failed"), tone: "error" });
       }
     })();
   }, [send]);
@@ -95,17 +105,25 @@ export default function ReadScreen({ token }: { token: string }) {
     if (audioRef.current) audioRef.current.playbackRate = speed;
   }, [speed, audio]);
 
+  const togglePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.playbackRate = speed;
+    if (a.paused) a.play().catch(() => null);
+    else a.pause();
+  };
+
   useEffect(() => {
     if (res) resultRef.current?.focus();
   }, [res]);
 
   const pick = (
     <>
-      {/* The input comes first so the button after it can show the focus ring (see me.css: input:focus-visible + label). */}
-      <input id="read-file" ref={fileRef} type="file" accept="image/*,application/pdf" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
-      <label className="big-btn main" htmlFor="read-file" style={{ cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
+      {/* One control for a screen reader: a real button that opens the file picker; the file input itself is hidden. */}
+      <input id="read-file" ref={fileRef} type="file" accept="image/*,application/pdf" hidden aria-hidden="true" tabIndex={-1} onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
+      <button type="button" className="big-btn main" disabled={busy} onClick={() => fileRef.current?.click()}>
         {busy ? t("reading") : t("choose_file")}
-      </label>
+      </button>
     </>
   );
 
@@ -127,7 +145,13 @@ export default function ReadScreen({ token }: { token: string }) {
       <section className="card" aria-labelledby="listen-h">
         <h3 id="listen-h">{t("listen")}</h3>
         {audio ? (
-          <audio ref={audioRef} controls preload="auto" src={audio} aria-label={t("listen")} />
+          <>
+            <audio ref={audioRef} src={audio} preload="auto" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+            <div className="stack">
+              <button type="button" className="big-btn main" onClick={togglePlay}>{playing ? t("pause") : t("play")}</button>
+              <button type="button" className="big-btn" onClick={() => { if (audioRef.current) audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10); }}>{t("back10")}</button>
+            </div>
+          </>
         ) : (
           <button type="button" className="big-btn main" onClick={() => speakWithPhone(res.spoken_text, res.lang)}>{t("phone_voice")}</button>
         )}

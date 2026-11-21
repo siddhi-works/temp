@@ -155,6 +155,27 @@ PERSONAL_RULE = {
 }
 
 
+_WEEKDAYS = {
+    "hi": ["सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
+    "mr": ["सोमवार", "मंगळवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार"],
+}
+_MONTHS = {
+    "hi": ["जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"],
+    "mr": ["जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून", "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर"],
+}
+
+
+def speak_date_lang(d: date, lang: str) -> str:
+    """'Monday, 30 November 2026' in the student's language (Marathi with Devanagari digits)."""
+    if lang not in _MONTHS:
+        return speak_date(d)
+    day, year = str(d.day), str(d.year)
+    if lang == "mr":
+        digits = str.maketrans("0123456789", "०१२३४५६७८९")
+        day, year = day.translate(digits), year.translate(digits)
+    return f"{_WEEKDAYS[lang][d.weekday()]}, {day} {_MONTHS[lang][d.month - 1]} {year}"
+
+
 def _plain_text(text: str) -> str:
     """Scanned tables arrive as HTML. Turn cells into comma-separated speech and drop markup, so nothing reads '<td>' aloud."""
     t = re.sub(r"</t[dh]\s*>", ", ", text, flags=re.I)
@@ -238,7 +259,7 @@ async def read_notice(
     `profile` (optional JSON, kept only on the student's phone) lets the answer say what applies to that student."""
     from .public import rate_limit
 
-    rate_limit(request, 6)
+    rate_limit(request, 6, key=f"read:{student.id}")  # per student, not per address
     cfg = get_settings()
     lang = lang if lang in CAUTION else "en"
     limit = cfg.max_upload_mb * 1024 * 1024
@@ -299,7 +320,7 @@ async def _read_notice(data: bytes, lang: str, prof=None) -> dict:
                 "kind": a.get("kind"),
                 "label": a.get("label"),
                 "due_date": a.get("due_date"),
-                "date_spoken": speak_date(date.fromisoformat(a["due_date"])) if a.get("due_date") and v.status == "verified" else None,
+                "date_spoken": speak_date_lang(date.fromisoformat(a["due_date"]), lang) if a.get("due_date") and v.status == "verified" else None,
                 "due_time": a.get("due_time"),
                 "venue": a.get("venue"),
                 "status": v.status,

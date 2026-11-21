@@ -176,6 +176,8 @@ async def gemini_extract(
     if image is not None and image_mime and (force_image or needs_image(ocr_text)):
         contents.append(types.Part.from_bytes(data=image, mime_type=image_mime))
     prompt = EXTRACT_PROMPT.format(today=today, text=(focus_text(ocr_text, profile) if profile is not None else ocr_text[:20000]))
+    if lang != "en":
+        prompt += f"\n- Write every action label in {LANG_NAMES.get(lang, 'simple English')} (this overrides the English label rule above). Keep names, numbers and amounts as written.\n"
     if profile is not None:
         prompt += PERSONAL_PROMPT.format(student=describe(profile), lang_name=LANG_NAMES.get(lang, "simple English"))
     contents.append(prompt)

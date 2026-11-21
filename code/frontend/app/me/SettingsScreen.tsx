@@ -53,6 +53,7 @@ export default function SettingsScreen({ extra }: { extra?: React.ReactNode }) {
     } catch {}
   };
   const forget = () => {
+    if (!window.confirm(t("forget_confirm"))) return;
     setProfile(EMPTY);
     try {
       localStorage.removeItem("saathi_profile");
@@ -68,7 +69,8 @@ export default function SettingsScreen({ extra }: { extra?: React.ReactNode }) {
         {FIELDS.map(([k, label]) => (
           <div key={k}>
             <label htmlFor={`prof-${k}`}>{t(label)}</label>
-            <input id={`prof-${k}`} type="text" autoComplete="off" maxLength={k === "extra" ? 120 : 60} value={profile[k]} onChange={(e) => edit(k, e.target.value)} />
+            <input id={`prof-${k}`} type="text" autoComplete={k === "name" ? "name" : "off"} maxLength={k === "extra" ? 120 : 60} value={profile[k]} onChange={(e) => edit(k, e.target.value)} aria-describedby={k === "roll_no" ? "prn-help" : undefined} />
+            {k === "roll_no" ? <p id="prn-help" className="muted" style={{ marginTop: 8 }}>{t("prn_help")}</p> : null}
           </div>
         ))}
         <div className="stack" style={{ marginTop: 24 }}>
@@ -80,7 +82,7 @@ export default function SettingsScreen({ extra }: { extra?: React.ReactNode }) {
       <section aria-labelledby="disp-h">
         <h2 id="disp-h">{t("display")}</h2>
         <Choice<Size> label={t("text_size")} value={prefs.size} onPick={(size) => set({ size })} options={[["normal", t("size_normal")], ["large", t("size_large")], ["xlarge", t("size_xlarge")]]} />
-        <Choice<Look> label={t("colours")} value={prefs.look} onPick={(look) => set({ look })} options={[["calm", t("look_calm")], ["dark", t("look_dark")], ["contrast", t("look_contrast")]]} />
+        <Choice<Look> label={t("colours")} value={prefs.look} onPick={(look) => set({ look })} options={[["daylight", t("look_daylight")], ["sepia", t("look_sepia")], ["dark", t("look_dark")], ["contrast", t("look_contrast")]]} />
         <Choice<Space> label={t("spacing")} value={prefs.space} onPick={(space) => set({ space })} options={[["normal", t("space_normal")], ["wide", t("space_wide")]]} />
       </section>
 

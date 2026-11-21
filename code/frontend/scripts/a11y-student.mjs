@@ -12,16 +12,17 @@ const { chromium } = require("playwright-core"); // installed with @axe-core/pla
 const AxeBuilder = require("@axe-core/playwright").default;
 
 const BASE = process.env.BASE || "http://localhost:3000";
-const looks = ["calm", "dark", "contrast"];
+const looks = ["daylight", "sepia", "dark", "contrast"];
 const sizes = ["normal", "xlarge"];
 const screens = ["", "#read", "#catch", "#deadlines", "#settings"];
+const ABOUT = true;
 let failed = false;
 const rows = [];
 
 const browser = await chromium.launch({ channel: process.env.CHANNEL || "chrome" });
 
 async function audit(page, label) {
-  const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
+  const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "wcag2aaa", "best-practice"]).analyze();
   const bad = r.violations.filter((v) => ["serious", "critical"].includes(v.impact));
   if (bad.length) failed = true;
   rows.push({ label, serious: bad.map((v) => `${v.id} (${v.nodes.length}): ${v.nodes[0].target.join(" ").slice(0, 70)}`), minor: r.violations.filter((v) => !bad.includes(v)).map((v) => v.id) });
@@ -76,12 +77,16 @@ for (const size of sizes) {
       const focused = await page.evaluate(() => document.activeElement?.tagName);
       if (focused !== "H1") { failed = true; rows.push({ label: `${hash || "home"} FOCUS`, serious: [`title not focused after navigating (focus is on ${focused})`], minor: [] }); }
       await audit(page, `${hash || "home"} "${title}" / ${look} / ${size}`);
-      if (look === "calm" && size === "normal") {
+      if (look === "daylight" && size === "normal") {
         await targets(page, hash || "home");
         const order = await keyboard(page, hash || "home");
         rows.push({ label: `${hash || "home"} tab order`, serious: [], minor: order });
       }
     }
+    await page.goto(`${BASE}/about`);
+    await page.waitForSelector("h1");
+    await audit(page, `about / ${look} / ${size}`);
+    if (look === "daylight" && size === "normal") await targets(page, "about");
     await ctx.close();
   }
 }

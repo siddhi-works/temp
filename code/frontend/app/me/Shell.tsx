@@ -26,7 +26,7 @@ export function TopBar() {
   const { t, lang, setLang } = useT();
   return (
     <header className="topbar">
-      <a className="brand-name" href="#" aria-label="Saathi, home">Saathi</a>
+      <a className="brand-name" href="/me#" aria-label="Saathi, home">Saathi</a>
       <div className="langs" role="group" aria-label={t("language")}>
         {LANGS.map((l) => (
           <button key={l.code} type="button" lang={l.code} aria-pressed={lang === l.code} onClick={() => setLang(l.code)}>
@@ -43,12 +43,12 @@ export function Screen({ title, onBack, children }: { title: string; onBack?: ()
   const { t } = useT();
   const h1 = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    document.title = `${title} | Saathi`;
     h1.current?.focus();
     window.scrollTo(0, 0);
   }, [title]);
   return (
     <div className="me">
+      <title>{`${title} | Saathi`}</title>
       <TopBar />
       <main id="main" className="wrap">
         {onBack ? (

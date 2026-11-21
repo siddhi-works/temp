@@ -40,8 +40,9 @@ VISIBLE = (NoticeStatus.published, NoticeStatus.superseded)
 _hits: dict[str, deque] = defaultdict(deque)
 
 
-def rate_limit(request: Request, per_minute: int) -> None:
-    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
+def rate_limit(request: Request, per_minute: int, key: str | None = None) -> None:
+    """Per client address, or per `key` (a student id) so a whole classroom behind one Wi-Fi address is not blocked together."""
+    ip = key or request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
     q = _hits[ip]
     now = time.monotonic()
     while q and now - q[0] > 60:
@@ -215,7 +216,7 @@ async def join(request: Request, body: JoinIn, s: AsyncSession = Depends(get_ses
 
     import hmac
 
-    rate_limit(request, 6)
+    rate_limit(request, 40)  # generous: many students can share one college Wi-Fi address
     expected = get_settings().demo_access_code
     if expected and not hmac.compare_digest(expected.lower(), (body.code or "").strip().lower()):
         raise AppError("That access code is not right. Ask the Saathi team for the code.", code="access_code_required", status_code=403)
