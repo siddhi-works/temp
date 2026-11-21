@@ -55,6 +55,7 @@ html[data-space="wide"] .me { letter-spacing: 0.06em; word-spacing: 0.2em; line-
 
 .me .stack { display: flex; flex-direction: column; gap: 20px; }
 .me .big-btn {
+  text-decoration: none;
   display: block; width: 100%; min-height: 76px; padding: 16px 22px; text-align: left; cursor: pointer;
   border: 3px solid var(--ink); border-radius: 18px; background: var(--panel); color: var(--ink); font: inherit; font-size: 1.3rem; font-weight: 800; line-height: 1.35;
 }

@@ -18,7 +18,7 @@ What we protect, from whom, how, and how we know it works. Every control marked 
 | A malicious notice tries to give the AI orders (prompt injection) | Scan text is wrapped as untrusted data; output must match a schema; the student's details are stripped of markup and length-capped; nothing the AI returns is trusted without verification | `test_profile` (sanitising), verification tests |
 | Forged or stolen student token | Signed (HMAC) with expiry; tampered tokens rejected; no passwords to steal | **(tested)** `test_a_tampered_token_is_rejected` |
 | One student reading another's data | Every record is checked against the token's student; a wrong owner gets the same "not found" as a missing record | **(tested)** `test_a_student_cannot_confirm_another_students_deadline` |
-| Stranger takes over first-time setup | Setup needs a secret token when one is configured | **(tested)** |
+| Stranger takes over first-time admin setup | The whole college side is **not mounted** by default (no setup endpoint exists); when switched on, setup needs a secret token | **(tested)** both ways |
 | Stranger drains the AI budget | Access code on sign-up, per-student read limit, generous per-client sign-up limit, hard spend cap | **(tested)** access code and rate limits |
 | Rate limits unfairly block a classroom on one Wi-Fi address | Reads are limited per student, not per address | **(tested)** |
 | Huge, empty or disguised files | 15 MB limit, empty check, type from the first bytes (an `.exe` renamed `.pdf` is refused), page caps, locked PDFs refused | **(tested)** |

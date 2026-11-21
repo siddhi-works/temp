@@ -188,20 +188,21 @@ saathi-campus/
 └─ code/
    ├─ Dockerfile, start.sh   one container: API plus website
    ├─ backend/
-   │  ├─ app/routers/        HTTP endpoints (student, staff, public, WhatsApp webhook)
+   │  ├─ app/routers/        HTTP endpoints. Student ones are always on; the college side is off by default
    │  ├─ app/pipeline/       the logic: date verification, personal insight, jobs, notifications
    │  ├─ app/providers/      one adapter per outside service (OCR, AI, voice, push, WhatsApp)
    │  └─ tests/              116 tests
    └─ frontend/
       ├─ app/me/             the student app
       ├─ app/about/          privacy, AI tools, accessibility statement
-      ├─ app/desk/           staff desk (college side)
+      ├─ app/desk/           staff desk: kept in the code, switched off (COLLEGE_MODE)
       ├─ lib/                translations, display choices, API client
       └─ scripts/            accessibility test
 ```
 
 ## Honest limits and what is next
 
+- **Student-facing only, by design.** The college side (staff desk, publishing, walkthroughs, WhatsApp) is kept in the code but switched off. Set `COLLEGE_MODE=true` on the API and `NEXT_PUBLIC_COLLEGE_MODE=true` at build to bring it back. While off, none of those endpoints exist.
 - **Not yet tested with a real blind student.** Automated and eyes-closed testing are done; a consented session with a blind or low-vision student is the next milestone.
 - **Single-instance design.** The job queue and rate limiter live in the API process. Going beyond one instance means a shared queue and cache (documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 - **No database migrations yet.** Tables are created on start; a migration tool comes before any schema change in production.

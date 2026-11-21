@@ -19,6 +19,9 @@ It opens from a link, installs to the home screen, appears in Android's Share me
 **5. Why not WhatsApp?**
 Notices already arrive there, so the Share menu starts the flow from WhatsApp. Replying through WhatsApp needs Meta business verification, and unofficial libraries break its terms. The code exists and is switched off.
 
+**5b. Is there an admin or staff side?**
+The code for a college-side desk exists, but the product is deliberately student-only: it is switched off, and while off its endpoints do not exist. That removes a whole attack surface (including admin setup) and keeps the demo about the student. It can be switched on for colleges that want human-approved official notices.
+
 ## Privacy and security
 
 **6. What do you store?**

@@ -12,7 +12,6 @@ Saathi Campus reads a photo or PDF of a college notice aloud in English, Hindi o
 |---|---|---|
 | Code | GitHub `siddhi-works/temp`, branch `main` | Source; Render deploys from it |
 | Live app | https://temp-6vp3.onrender.com/me | The demo. Free hosting: sleeps when idle |
-| Staff desk | https://temp-6vp3.onrender.com/desk | The college side (see section 6) |
 | Hosting | Render, web service `temp`, root directory `code`, Docker | Runs API and website in one container |
 | Database | Neon (Postgres) | Anonymous sessions and saved deadlines |
 | Keep-awake | UptimeRobot, monitor on `/health`, every 5 minutes | Stops the free server sleeping |
@@ -26,7 +25,6 @@ Saathi Campus reads a photo or PDF of a college notice aloud in English, Hindi o
 - A consented test with a real blind or low-vision student. This is the most important gap.
 - A contact email on the About page (needs a real address from the team).
 - Official Rotaract logo, if the organisers allow it (do not use an unofficial one).
-- Judge account for the staff desk (see section 6).
 - A real run of the new CI workflow (check the GitHub Actions tab).
 
 ## 4. Secrets: names only
@@ -41,7 +39,8 @@ Real values live in two places: **Render, Environment tab**, and the local file 
 | `SARVAM_API_KEY`, `SARVAM_BUDGET_PAISE` | Scan reading and voice; spend cap |
 | `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_MODEL` | Understanding. Extra keys absorb quota limits; use different Google accounts |
 | `PUBLIC_BASE_URL`, `FRONTEND_BASE_URL`, `CORS_ORIGINS` | The Render URL |
-| `SETUP_TOKEN` | Locks first-time desk setup |
+| `COLLEGE_MODE` | Leave unset: the college side stays off. `true` brings back the staff desk and publishing |
+| `SETUP_TOKEN` | Only matters when college mode is on: locks first-time desk setup |
 | `DEMO_ACCESS_CODE` | Optional code students must enter to start |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | Vibration alerts. Set the subject to `mailto:` and a real email |
 | `MAX_PDF_PAGES`, `MAX_TEXT_PDF_PAGES` | Scanned page cap (10) and text-PDF page cap (40) |
@@ -65,19 +64,16 @@ cd code/frontend && npx tsc --noEmit --noUnusedLocals && node scripts/a11y-stude
 
 Pushing to `main` redeploys Render in about three minutes. `docs/DEPLOYMENT.md` has the Render and Neon steps; `docs/SUBMISSION.md` covers copying the code to the organisers' repository.
 
-## 6. The staff desk (`/desk`), plainly
+## 6. The college side is switched off
 
-The student app is the main product and needs no login. The **desk is the college's side**, for a trusted person (an exam-section clerk or a volunteer) to publish *official* notices:
+Saathi is a **student-facing product**: a student opens a link, taps Start, and reads notices. There is no admin or staff login in the product.
 
-1. They upload a notice. Saathi reads it and proposes the dates.
-2. A human checks and approves, so the college stands behind what is published.
-3. Students of that college see it, with audio and reminders.
+The college side still exists in the code, for a future where a college wants to publish official notices with a human check (staff desk, campus walkthroughs, WhatsApp). It is behind one switch, **off by default**:
 
-It has four tabs: **Notices** (upload and approve), **Walkthroughs** (campus routes recorded by volunteers and approved by a second person), **Students** and **Team** (the admin creates volunteer sign-in tokens). It exists for colleges that adopt Saathi. **A judge never needs it to try the product.**
+- API: `COLLEGE_MODE=true` mounts those endpoints. Off, they do not exist (a test proves it), and that includes first-time admin setup, so there is no admin account to take over.
+- Website: build with `NEXT_PUBLIC_COLLEGE_MODE=true`. Off, `/desk`, `/routes` and `/r/...` return "not found".
 
-**First-time setup (once, by a person with the setup token):** open `/desk`, expand "Setting up Saathi Campus for the first time?", enter the college details and the setup token, and save the admin token that appears. It is shown only once.
-
-**Showing the desk to judges, safely:** do not put a login on a public page. Instead give judges a private link: `https://temp-6vp3.onrender.com/desk#token=<admin or volunteer token>`. The part after `#` stays in the browser and is never sent to the server or logged. Treat the link like a password and share it only with judges.
+To turn it on later: set both switches, redeploy, then open `/desk` and follow the first-time setup (needs `SETUP_TOKEN`). To show judges a signed-in desk safely, use a private link `/desk#token=<token>`: the part after `#` is never sent to the server or logged.
 
 ## 7. Things we learned the hard way
 
@@ -93,8 +89,7 @@ It has four tabs: **Notices** (upload and approve), **Walkthroughs** (campus rou
 1. Get a consented session with a blind or low-vision student and write down what happened.
 2. Add a real contact email (About page, `NEXT_PUBLIC_CONTACT_EMAIL`).
 3. Record a backup demo video (a hackathon rule) and prepare the slide that names every AI tool.
-4. Create the judge access to the desk if you want to show it (section 6).
-5. Move beyond one instance: shared queue, migrations, object storage (`docs/ARCHITECTURE.md`, section 6).
+4. Move beyond one instance: shared queue, migrations, object storage (`docs/ARCHITECTURE.md`, section 6).
 
 ## 9. Demo-day checklist
 

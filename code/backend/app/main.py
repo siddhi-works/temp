@@ -89,7 +89,12 @@ def create_app() -> FastAPI:
         return response
 
     install_error_handlers(app)
-    for r in (system.router, admin.router, notices.router, notices.review_router, public.router, impact.router, webhook.router, me.router, me.public_router, routes.router):
+    # Student-facing endpoints are always on. The college side exists in the code but is mounted only when COLLEGE_MODE=true,
+    # so a student-only deployment exposes none of it (including the first-time admin setup).
+    routers = [system.router, public.router, me.router, me.public_router]
+    if s.college_mode:
+        routers += [admin.router, notices.router, notices.review_router, impact.router, webhook.router, routes.router]
+    for r in routers:
         app.include_router(r)
     return app
 

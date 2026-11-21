@@ -8,6 +8,7 @@ import { api, ApiError, errText, speakDateLocal, speakTime, WEEKDAYS } from "@/l
 import { shrinkImage } from "@/lib/image";
 import { extFor, useRecorder } from "@/lib/recorder";
 import { clearDisplay } from "@/lib/display";
+import { COLLEGE_MODE } from "@/lib/features";
 import { useT } from "@/lib/i18n";
 import ReadScreen from "./ReadScreen";
 import SettingsScreen from "./SettingsScreen";
@@ -106,7 +107,7 @@ export default function StudentApp() {
     );
   }
 
-  const college = !!inbox?.student?.college;
+  const college = COLLEGE_MODE && !!inbox?.student?.college; // college features only exist when college mode is on
 
   if (view === "read")
     return (

@@ -4,7 +4,8 @@ WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-ENV BACKEND_URL=http://127.0.0.1:8001 NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_COLLEGE_MODE=false
+ENV BACKEND_URL=http://127.0.0.1:8001 NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_COLLEGE_MODE=$NEXT_PUBLIC_COLLEGE_MODE
 RUN npm run build && npm prune --omit=dev
 
 FROM python:3.12-slim

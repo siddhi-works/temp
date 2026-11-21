@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     setup_token: str = ""
     demo_access_code: str = ""
 
+    # The college side (staff desk, publishing, walkthroughs, WhatsApp) is off by default: Saathi is a student-facing product.
+    # Set COLLEGE_MODE=true to mount it again. When off, none of those endpoints exist, including first-time admin setup.
+    college_mode: bool = False
+
     # Secret used to sign student links and hash phone numbers. Must be set in prod.
     secret_key: str = "dev-only-change-me"
     # Fernet key (urlsafe base64, 32 bytes) used to encrypt phone numbers at rest.

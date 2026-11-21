@@ -6,6 +6,7 @@ import type { Lang } from "./i18n";
 export const MORE: Record<Lang, Record<string, string>> = {
   en: {
     ab_event: "Made by team MolecuLens for the Naya Bharat 2047 hackathon, problem 5.3: a notice the screen reader cannot read. Saathi Campus is an independent student project and is not endorsed by Rotary or Rotaract.",
+    open_app: "Open Saathi",
     look_daylight: "Warm daylight",
     look_sepia: "Soft sepia",
     forget_confirm: "Remove all your saved details from this phone?",
@@ -28,6 +29,7 @@ export const MORE: Record<Lang, Record<string, string>> = {
   },
   hi: {
     ab_event: "टीम MolecuLens द्वारा Naya Bharat 2047 हैकथॉन, समस्या 5.3 के लिए बनाया गया: वह सूचना जिसे स्क्रीन रीडर नहीं पढ़ सकता। Saathi Campus एक स्वतंत्र विद्यार्थी परियोजना है और Rotary या Rotaract द्वारा समर्थित नहीं है।",
+    open_app: "Saathi खोलें",
     look_daylight: "गर्म दिन की रोशनी",
     look_sepia: "हल्का सेपिया",
     forget_confirm: "क्या इस फ़ोन से आपके सभी सेव किए गए विवरण हटा दें?",
@@ -50,6 +52,7 @@ export const MORE: Record<Lang, Record<string, string>> = {
   },
   mr: {
     ab_event: "टीम MolecuLens ने Naya Bharat 2047 हॅकेथॉन, समस्या 5.3 साठी बनवले: स्क्रीन रीडर वाचू शकत नाही अशी सूचना. Saathi Campus हा स्वतंत्र विद्यार्थी प्रकल्प आहे आणि Rotary किंवा Rotaract यांनी त्याला मान्यता दिलेली नाही.",
+    open_app: "Saathi उघडा",
     look_daylight: "उबदार दिवसप्रकाश",
     look_sepia: "सौम्य सेपिया",
     forget_confirm: "या फोनवरून तुमचे सर्व सेव्ह केलेले तपशील काढायचे का?",
