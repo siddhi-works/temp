@@ -6,6 +6,12 @@ import Header from "@/components/Header";
 import { api, ApiError, errText, rel, speakTime, WEEKDAYS } from "@/lib/api";
 import { shrinkImage } from "@/lib/image";
 import { extFor, useRecorder } from "@/lib/recorder";
+import { clearDisplay } from "@/lib/display";
+import { useT } from "@/lib/i18n";
+import ReadScreen from "./ReadScreen";
+import SettingsScreen from "./SettingsScreen";
+import { Screen } from "./Shell";
+import Welcome from "./Welcome";
 
 type Slot = { weekday: number; start: string; end: string; subject: string; room?: string | null };
 
@@ -28,25 +34,42 @@ function readAloud(text: string, lang = "en-IN") {
   window.speechSynthesis.speak(u);
 }
 
+type View = "home" | "read" | "catch" | "deadlines" | "settings" | "college";
+const VIEWS: View[] = ["read", "catch", "deadlines", "settings", "college"];
+
 export default function StudentApp() {
+  const { t } = useT();
   const [token, setToken] = useState<string | null>(null);
   const [inbox, setInbox] = useState<any>(null);
   const [loadErr, setLoadErr] = useState("");
+  const [view, setView] = useState<View>("home");
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("t");
+    const t0 = new URLSearchParams(window.location.search).get("t");
     let saved = "";
     try {
-      if (t) localStorage.setItem("saathi_token", t);
-      saved = t || localStorage.getItem("saathi_token") || "";
+      if (t0) localStorage.setItem("saathi_token", t0);
+      saved = t0 || localStorage.getItem("saathi_token") || "";
     } catch {
-      saved = t || "";
+      saved = t0 || "";
     }
     setToken(saved);
     // Register early so "Share -> Saathi" works even before the student turns on vibration alerts.
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => null);
+    return () => clearDisplay();
   }, []);
 
+  // Each task is its own screen, reached through the address (#read, #settings ...), so the phone's Back button works.
+  useEffect(() => {
+    const sync = () => {
+      const h = window.location.hash.replace("#", "") as View;
+      const shared = new URLSearchParams(window.location.search).get("shared") === "1";
+      setView(shared ? "read" : VIEWS.includes(h) ? h : "home");
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
 
   const loadInbox = useCallback(async () => {
     if (!token) return;
@@ -61,292 +84,84 @@ export default function StudentApp() {
     loadInbox();
   }, [loadInbox]);
 
-  const simple = !inbox?.student?.college; // web-only students have no college, so timetable/board/notice sections would be empty
+  const go = (v: View) => {
+    window.location.hash = v === "home" ? "" : v;
+  };
+  const back = () => go("home");
+
   if (token === null) return null;
   if (!token || (loadErr && !inbox)) {
-    return <Welcome onToken={(t) => { try { localStorage.setItem("saathi_token", t); } catch {} setLoadErr(""); setToken(t); }} reason={loadErr ? "Your saved session has expired. Please start again." : ""} />;
-  }
-
-  return (
-    <>
-      <Header who={inbox?.student?.college} />
-      <main id="main" className="wrap">
-        <h1 className="sr-only">Saathi Campus</h1>
-        <ReadNotice token={token} defaultLang={inbox?.student?.preferred_lang} />
-        {!simple ? <RightNow token={token} /> : null}
-        <nav aria-label="Sections">
-          <ul className="jump">
-            <li><a href="#read">Read a notice</a></li>
-            <li><a href="#catch">Catch a deadline</a></li>
-            {!simple ? <li><a href="#boards">Board photos</a></li> : null}
-            <li><a href="#deadlines">Deadlines</a></li>
-            {!simple ? <li><a href="#notices">Notices</a></li> : null}
-            {!simple ? <li><a href="#timetable">My timetable</a></li> : null}
-            <li><a href="#buzz">Vibration alerts</a></li>
-            {!simple ? <li><a href="/routes">Walkthroughs</a></li> : null}
-          </ul>
-        </nav>
-        <Catcher token={token} />
-        {!simple ? <Boards token={token} /> : null}
-        <Deadlines token={token} inbox={inbox} />
-        {!simple ? <Notices token={token} inbox={inbox} /> : null}
-        {!simple ? <Timetable token={token} /> : null}
-        <Buzz token={token} />
-        {simple ? <p className="muted">To read a photo of a notice board, a camera app like Seeing AI or Google Lookout can help you take a clear photo first. Then share it to Saathi.</p> : null}
-        <Settings token={token} inbox={inbox} onChange={loadInbox} />
-      </main>
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ Welcome (no WhatsApp, no college login) */
-
-const LANGS: [string, string][] = [
-  ["en", "English"],
-  ["hi", "हिन्दी (Hindi)"],
-  ["mr", "मराठी (Marathi)"],
-];
-
-function Welcome({ onToken, reason }: { onToken: (t: string) => void; reason?: string }) {
-  const [lang, setLang] = useState("en");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const go = async () => {
-    setBusy(true);
-    setErr("");
-    try {
-      const r = await api("/api/public/join", { json: { lang, code: code.trim() || undefined } });
-      onToken(r.token);
-    } catch (e) {
-      setErr(errText(e));
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <Header />
-      <main id="main" className="wrap">
-        <h1>Hear any college notice</h1>
-        <p className="lede">
-          Share a photo or PDF of a notice with Saathi. It reads the notice aloud in your language and tells you the dates it could
-          check against the scan.
-        </p>
-        {reason ? <p className="notice-box">{reason}</p> : null}
-        <label htmlFor="welcome-lang">Language for the voice</label>
-        <select id="welcome-lang" value={lang} onChange={(e) => setLang(e.target.value)}>
-          {LANGS.map(([v, n]) => (
-            <option key={v} value={v} lang={v}>{n}</option>
-          ))}
-        </select>
-        <label htmlFor="welcome-code">Access code (only if the Saathi team gave you one)</label>
-        <input id="welcome-code" type="text" autoComplete="off" autoCapitalize="none" value={code} onChange={(e) => setCode(e.target.value)} />
-        <p>
-          <button className="btn primary wide" onClick={go} disabled={busy}>
-            {busy ? "Starting…" : "Start"}
-          </button>
-        </p>
-        <Status text={err} tone="error" />
-        <p className="muted">No account or phone number needed. Notices you share are read to you and are not published to anyone.</p>
-      </main>
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ Read a notice aloud */
-
-function ReadNotice({ token, defaultLang }: { token: string; defaultLang?: string }) {
-  const [lang, setLang] = useState(defaultLang && LANGS.some(([v]) => v === defaultLang) ? defaultLang : "en");
-  const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<any>(null);
-  const [status, setStatus] = useState<{ text: string; tone?: "error" | "ok" }>({ text: "" });
-  const fileRef = useRef<HTMLInputElement>(null);
-  const headRef = useRef<HTMLHeadingElement>(null);
-  const langRef = useRef(lang);
-  langRef.current = lang;
-
-  // "My details" never leave this phone except inside the one request that reads a notice; the server does not keep them.
-  const emptyProfile = { name: "", course: "", division: "", roll_no: "", batch: "", extra: "" };
-  const [profile, setProfile] = useState(emptyProfile);
-  const profileRef = useRef(profile);
-  profileRef.current = profile;
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("saathi_profile");
-      if (raw) setProfile({ ...emptyProfile, ...JSON.parse(raw) });
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const editProfile = (k: keyof typeof emptyProfile, v: string) => {
-    const next = { ...profileRef.current, [k]: v };
-    setProfile(next);
-    try {
-      localStorage.setItem("saathi_profile", JSON.stringify(next));
-    } catch {}
-  };
-  const forgetProfile = () => {
-    setProfile(emptyProfile);
-    try {
-      localStorage.removeItem("saathi_profile");
-    } catch {}
-    setStatus({ text: "Your details were removed from this phone.", tone: "ok" });
-  };
-
-  const send = useCallback(
-    async (file: File) => {
-      setBusy(true);
-      setRes(null);
-      setStatus({ text: "Reading the notice. This takes up to a minute." });
-      try {
-        const small = await shrinkImage(file, 2000);
-        const f = new FormData();
-        f.append("file", small, small.name || "notice");
-        f.append("lang", langRef.current);
-        if (Object.values(profileRef.current).some((v) => v.trim())) f.append("profile", JSON.stringify(profileRef.current));
-        const r = await api("/api/me/read", { token, form: f, timeoutMs: 150000 });
-        setRes(r);
-        setStatus({ text: "" });
-      } catch (e) {
-        setStatus({ text: errText(e), tone: "error" });
-      } finally {
-        setBusy(false);
-        if (fileRef.current) fileRef.current.value = "";
-      }
-    },
-    [token],
-  );
-
-  // A file shared from WhatsApp / Gallery / Files arrives through the service worker.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("shared") !== "1" || !("caches" in window)) return;
-    (async () => {
-      try {
-        const cache = await caches.open("saathi-share");
-        const hit = await cache.match("/shared-file");
-        if (!hit) return;
-        const blob = await hit.blob();
-        await cache.delete("/shared-file");
-        window.history.replaceState(null, "", "/me");
-        await send(new File([blob], blob.type === "application/pdf" ? "shared.pdf" : "shared.jpg", { type: blob.type }));
-      } catch {
-        setStatus({ text: "I could not receive that file. Please choose it with the button instead.", tone: "error" });
-      }
-    })();
-  }, [send]);
-
-  useEffect(() => {
-    if (res) headRef.current?.focus();
-  }, [res]);
-
-  // Download the whole clip first, then play it from memory. Streaming over a weak connection can stop after a second.
-  const [audio, setAudio] = useState<string | undefined>();
-  useEffect(() => {
-    setAudio(undefined);
-    if (!res?.audio_b64) return;
-    // The voice arrives inside the answer and is never stored on the server.
-    const bytes = Uint8Array.from(atob(res.audio_b64), (c) => c.charCodeAt(0));
-    const objectUrl = URL.createObjectURL(new Blob([bytes], { type: res.audio_mime || "audio/mpeg" }));
-    setAudio(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [res?.audio_b64, res?.audio_mime]);
-  return (
-    <section id="read" className="feature" aria-labelledby="read-h">
-      <h2 id="read-h">Read a notice to me</h2>
-      <p className="muted">Choose a photo or PDF of a notice, or share it to Saathi from WhatsApp or your gallery.</p>
-      <label htmlFor="read-lang">Voice language</label>
-      <select id="read-lang" value={lang} onChange={(e) => setLang(e.target.value)} disabled={busy}>
-        {LANGS.map(([v, n]) => (
-          <option key={v} value={v} lang={v}>{n}</option>
-        ))}
-      </select>
-      <details style={{ margin: "12px 0" }}>
-        <summary>My details (optional): get what applies to you</summary>
-        <p className="muted">
-          Saved only on this phone. They are sent with a notice so Saathi can find your class, seat or roll number, and the server does
-          not keep them.
-        </p>
-        {(
-          [
-            ["name", "Name"],
-            ["course", "Class, for example SY B.Com"],
-            ["division", "Division"],
-            ["roll_no", "Roll, seat or PRN number"],
-            ["batch", "Batch"],
-            ["extra", "Anything else, for example OBC scholarship"],
-          ] as const
-        ).map(([k, label]) => (
-          <div key={k}>
-            <label htmlFor={`prof-${k}`}>{label}</label>
-            <input id={`prof-${k}`} type="text" autoComplete="off" maxLength={k === "extra" ? 120 : 60} value={profile[k]} onChange={(e) => editProfile(k, e.target.value)} />
-          </div>
-        ))}
-        <p>
-          <button type="button" className="btn" onClick={forgetProfile}>Forget my details</button>
-        </p>
-      </details>
-      <label className="btn yellow wide" htmlFor="read-file" style={{ display: "block", textAlign: "center", marginTop: 12 }}>
-        {busy ? "Reading…" : "Choose a notice (photo or PDF)"}
-      </label>
-      <input
-        id="read-file"
-        ref={fileRef}
-        type="file"
-        accept="image/*,application/pdf"
-        className="sr-only"
-        disabled={busy}
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) send(f);
+    return (
+      <Welcome
+        expired={!!loadErr}
+        onToken={(tk) => {
+          try {
+            localStorage.setItem("saathi_token", tk);
+          } catch {}
+          setLoadErr("");
+          setToken(tk);
         }}
       />
-      <Status text={status.text} tone={status.tone} />
-      {res ? (
-        <div>
-          <h3 ref={headRef} tabIndex={-1}>{res.title || "Notice"}</h3>
-          {res.personal ? (
-            <section aria-labelledby="for-you-h">
-              <h3 id="for-you-h">For you</h3>
-              {res.personal.found ? (
-                <ul>
-                  {res.personal.matches.map((m: any, i: number) => (
-                    <li key={i}>
-                      <strong>{m.what}:</strong> {m.detail}
-                      <span className="muted" style={{ display: "block" }}>Found in the notice ({m.basis}): {m.quote}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>I could not find anything in this notice that is specifically for you.</p>
-              )}
-              <p className="muted">Checked against the scan. Please double-check on the notice itself.</p>
-            </section>
-          ) : null}
-          {audio ? <audio controls preload="auto" src={audio} aria-label="Spoken notice" style={{ width: "100%" }} /> : null}
-          <p lang={res.lang}>{res.spoken_text}</p>
-          <button className="btn" onClick={() => readAloud(res.spoken_text, { en: "en-IN", hi: "hi-IN", mr: "mr-IN" }[res.lang as string] || "en-IN")}>
-            Read aloud with my phone&rsquo;s voice
+    );
+  }
+
+  const college = !!inbox?.student?.college;
+
+  if (view === "read")
+    return (
+      <Screen title={t("read")} onBack={back}>
+        <ReadScreen token={token} />
+      </Screen>
+    );
+  if (view === "catch")
+    return (
+      <Screen title={t("catch")} onBack={back}>
+        <Catcher token={token} />
+      </Screen>
+    );
+  if (view === "deadlines")
+    return (
+      <Screen title={t("deadlines")} onBack={back}>
+        <Deadlines token={token} inbox={inbox} />
+      </Screen>
+    );
+  if (view === "settings")
+    return (
+      <Screen title={t("settings")} onBack={back}>
+        <SettingsScreen extra={<Buzz token={token} />} />
+      </Screen>
+    );
+  if (view === "college" && college)
+    return (
+      <Screen title={t("college")} onBack={back}>
+        <RightNow token={token} />
+        <Boards token={token} />
+        <Notices token={token} inbox={inbox} />
+        <Timetable token={token} />
+        <Settings token={token} inbox={inbox} onChange={loadInbox} />
+      </Screen>
+    );
+
+  const items: [View, string, string, boolean][] = [
+    ["read", t("read"), t("read_sub"), true],
+    ["catch", t("catch"), t("catch_sub"), false],
+    ["deadlines", t("deadlines"), t("deadlines_sub"), false],
+    ["settings", t("settings"), t("settings_sub"), false],
+  ];
+  return (
+    <Screen title={t("home_title")}>
+      <nav aria-label={t("home_title")} className="stack">
+        {items.map(([v, label, sub, main]) => (
+          <button key={v} type="button" className={`big-btn${main ? " main" : ""}`} onClick={() => go(v)}>
+            {label}
+            <span className="sub">{sub}</span>
           </button>
-          {res.actions?.length ? (
-            <>
-              <h3>Dates and tasks</h3>
-              <ul>
-                {res.actions.map((a: any, i: number) => (
-                  <li key={i}>
-                    <strong>{a.label}</strong>
-                    {a.date_spoken ? ` — ${a.date_spoken}${a.due_time ? " at " + speakTime(a.due_time) : ""}` : ""}
-                    {a.status !== "verified" ? (
-                      <span className="notice-box" style={{ display: "block" }}>
-                        Not confirmed against the scan. {a.reasons?.join(" ")} Please check with the college office.
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
+        ))}
+        {college ? (
+          <button type="button" className="big-btn" onClick={() => go("college")}>{t("college")}</button>
+        ) : null}
+      </nav>
+    </Screen>
   );
 }
 

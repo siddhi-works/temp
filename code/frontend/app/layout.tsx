@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: { default: "Saathi Campus", template: "%s | Saathi Campus" },
   description: "College life for blind and low-vision students: notices, timetable clashes, deadlines said in class, board photos and campus routes, by voice.",
   manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
