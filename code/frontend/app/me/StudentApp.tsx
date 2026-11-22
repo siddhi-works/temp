@@ -14,19 +14,10 @@ import { useT } from "@/lib/i18n";
 import ReadScreen from "./ReadScreen";
 import { IconCalendar, IconCatch, IconRead, IconSettings } from "@/components/Icons";
 import SettingsScreen from "./SettingsScreen";
-import { Screen } from "./Shell";
+import { Screen, Status } from "./Shell";
 import Welcome from "./Welcome";
 
 type Slot = { weekday: number; start: string; end: string; subject: string; room?: string | null };
-
-/** Status text for a section: shown on screen and announced politely by screen readers. */
-function Status({ text, tone }: { text: string; tone?: "error" | "ok" }) {
-  return (
-    <p role="status" aria-live="polite" className={tone === "error" ? "notice-box" : tone === "ok" ? "ok-box" : "muted"} hidden={!text}>
-      {text}
-    </p>
-  );
-}
 
 function readAloud(text: string, lang = "en-IN") {
   // For low-vision users who do not run a screen reader. Screen reader users hear the live region instead.
@@ -68,6 +59,7 @@ export default function StudentApp() {
     const sync = () => {
       const h = window.location.hash.replace("#", "") as View;
       const shared = new URLSearchParams(window.location.search).get("shared") === "1";
+      if (!shared && h && !VIEWS.includes(h)) return; // an in-page anchor such as #main is not a screen
       setView(shared ? "read" : VIEWS.includes(h) ? h : "home");
     };
     sync();
@@ -113,31 +105,31 @@ export default function StudentApp() {
 
   if (view === "read")
     return (
-      <Screen title={t("read")} onBack={back}>
+      <Screen key="read" title={t("read")} onBack={back}>
         <ReadScreen token={token} />
       </Screen>
     );
   if (view === "catch")
     return (
-      <Screen title={t("catch")} onBack={back}>
+      <Screen key="catch" title={t("catch")} onBack={back}>
         <Catcher token={token} />
       </Screen>
     );
   if (view === "deadlines")
     return (
-      <Screen title={t("deadlines")} onBack={back}>
+      <Screen key="deadlines" title={t("deadlines")} onBack={back}>
         <Deadlines token={token} inbox={inbox} />
       </Screen>
     );
   if (view === "settings")
     return (
-      <Screen title={t("settings")} onBack={back}>
+      <Screen key="settings" title={t("settings")} onBack={back}>
         <SettingsScreen extra={<Buzz token={token} />} />
       </Screen>
     );
   if (view === "college" && college)
     return (
-      <Screen title={t("college")} onBack={back}>
+      <Screen key="college" title={t("college")} onBack={back}>
         <RightNow token={token} />
         <Boards token={token} />
         <Notices token={token} inbox={inbox} />
@@ -154,7 +146,7 @@ export default function StudentApp() {
   ];
   const icons: Record<string, React.ReactNode> = { read: <IconRead />, catch: <IconCatch />, deadlines: <IconCalendar />, settings: <IconSettings /> };
   return (
-    <Screen title={t("home_title")}>
+    <Screen key="home" title={t("home_title")}>
       <nav aria-label={t("home_title")} className="stack">
         {items.map(([v, label, sub, main]) => (
           <button key={v} type="button" className={`big-btn has-icon${main ? " main" : ""}`} aria-label={label} aria-describedby={`sub-${v}`} onClick={() => go(v)}>
@@ -292,7 +284,7 @@ function Catcher({ token }: { token: string }) {
     <section id="catch" className="feature">
       <p>{t("c_intro")}</p>
       {rec.state !== "unsupported" ? (
-        <button className="btn yellow wide rec" aria-pressed={rec.state === "recording"} onClick={toggle} disabled={busy}>
+        <button className={`btn yellow wide rec${rec.state === "recording" ? " on" : ""}`} onClick={toggle} disabled={busy}>
           {rec.state === "recording" ? t("c_stop").replace("{n}", String(rec.seconds)) : t("c_record")}
         </button>
       ) : (
@@ -465,7 +457,7 @@ function Boards({ token }: { token: string }) {
             Search
           </button>
           {rec.state !== "unsupported" ? (
-            <button type="button" className="btn rec" aria-pressed={rec.state === "recording"} onClick={askByVoice}>
+            <button type="button" className={`btn rec${rec.state === "recording" ? " on" : ""}`} onClick={askByVoice}>
               {rec.state === "recording" ? "Stop and search" : "Ask by voice"}
             </button>
           ) : null}
@@ -536,11 +528,13 @@ function Deadlines({ token, inbox }: { token: string; inbox: any }) {
           {all.map((d: any) => (
             <li key={d.key}>
               <span className="title">{d.label}</span>
-              <br />
-              {d.spoken}
-              {d.time ? ` ${t("d_at")} ${speakTime(d.time)}` : ""}
-              <br />
-              <span className="small muted">
+              <span className="sr-only">. </span>
+              <span style={{ display: "block" }}>
+                {d.spoken}
+                {d.time ? ` ${t("d_at")} ${speakTime(d.time)}` : ""}
+              </span>
+              <span className="sr-only">. </span>
+              <span className="small muted" style={{ display: "block" }}>
                 {d.link ? <a href={d.link}>{t("d_from")} {d.from}</a> : d.from}
                 {d.unconfirmed ? ". " + t("d_check_office") : ""}
               </span>

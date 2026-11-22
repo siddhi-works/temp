@@ -13,6 +13,7 @@ export function useRecorder(maxSeconds = 60) {
   const chunks = useRef<Blob[]>([]);
   const resolver = useRef<((b: Blob | null) => void) | null>(null);
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pending = useRef<Blob | null>(null); // a recording that stopped by itself at the time limit
 
   useEffect(() => {
     if (typeof window !== "undefined" && (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")) {
@@ -30,12 +31,13 @@ export function useRecorder(maxSeconds = 60) {
       const type = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported?.(t));
       const r = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
       chunks.current = [];
+      pending.current = null;
       r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
       r.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = chunks.current.length ? new Blob(chunks.current, { type: r.mimeType || "audio/webm" }) : null;
-        resolver.current?.(blob);
-        resolver.current = null;
+        if (tick.current) clearInterval(tick.current);
+        if (resolver.current) { resolver.current(blob); resolver.current = null; } else pending.current = blob;
       };
       r.start();
       rec.current = r;
@@ -59,7 +61,9 @@ export function useRecorder(maxSeconds = 60) {
     return new Promise((resolve) => {
       if (!rec.current || rec.current.state !== "recording") {
         setState("idle");
-        return resolve(null);
+        const b = pending.current;
+        pending.current = null;
+        return resolve(b);
       }
       resolver.current = (b) => {
         setState("idle");

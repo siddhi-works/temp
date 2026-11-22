@@ -143,7 +143,9 @@ p { margin: 0 0 0.8em; max-width: 38em; }
   font-size: 1.25rem;
   margin: 12px 0;
 }
-.answer:empty { display: none; }
+.answer:empty { padding: 0; margin: 0; border: 0; } /* stays in the page: a live region must exist before its text does */
+.live:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } /* screen-reader status regions: present but no layout gap */
+main:focus { outline: none; }
 
 /* ---------- sections ---------- */
 .feature { padding: 34px 0 30px; border-top: 2px solid var(--line); }
@@ -169,7 +171,7 @@ p { margin: 0 0 0.8em; max-width: 38em; }
 .btn.wide { width: 100%; }
 .btn.danger { border-color: var(--clash); color: var(--clash); }
 .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
-.btn.rec[aria-pressed="true"] { background: var(--clash); border-color: var(--clash); color: #fff; }
+.btn.rec.on { background: var(--clash); border-color: var(--clash); color: #fff; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
 
 label { display: block; font-weight: 700; margin: 14px 0 6px; }

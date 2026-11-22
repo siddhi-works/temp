@@ -46,6 +46,9 @@ html[data-space="wide"] .me { letter-spacing: 0.06em; word-spacing: 0.2em; line-
 .me h1:focus, .me h2:focus { outline: none; } /* headings take focus only so a screen reader announces them; they are not controls */
 .me summary { display: flex; align-items: center; min-height: 52px; padding: 6px 4px; font-weight: 700; cursor: pointer; }
 .me .langs { display: flex; gap: 8px; }
+.me .btn.rec.on { background: var(--clash); border-color: var(--clash); color: var(--paper); }
+.me .big-btn[aria-disabled="true"], .me .big-btn:disabled { cursor: progress; opacity: 0.75; }
+.me { hyphens: none; text-align: left; }
 .me .langs button, .me .seg button {
   min-height: 52px; min-width: 52px; padding: 8px 16px; border: 2px solid var(--edge); border-radius: 12px;
   background: transparent; color: var(--ink); font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer;

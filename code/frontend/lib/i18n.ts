@@ -17,6 +17,8 @@ export const LANGS: { code: Lang; name: string }[] = [
 
 const D: Record<Lang, Record<string, string>> = {
   en: {
+    go_home: "Samyukta, home",
+    notice_untitled: "This notice",
     home_title: "What would you like to do?",
     read: "Read a notice to me",
     read_sub: "A photo or PDF of a notice",
@@ -76,6 +78,8 @@ const D: Record<Lang, Record<string, string>> = {
     space_wide: "Wide",
   },
   hi: {
+    go_home: "Samyukta, होम",
+    notice_untitled: "यह सूचना",
     home_title: "आप क्या करना चाहते हैं?",
     read: "मुझे सूचना पढ़कर सुनाओ",
     read_sub: "सूचना की फ़ोटो या PDF",
@@ -135,6 +139,8 @@ const D: Record<Lang, Record<string, string>> = {
     space_wide: "ज़्यादा",
   },
   mr: {
+    go_home: "Samyukta, मुख्यपृष्ठ",
+    notice_untitled: "ही सूचना",
     home_title: "तुम्हाला काय करायचे आहे?",
     read: "मला सूचना वाचून दाखवा",
     read_sub: "सूचनेचा फोटो किंवा PDF",

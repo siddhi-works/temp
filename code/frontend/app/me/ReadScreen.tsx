@@ -127,7 +127,7 @@ export default function ReadScreen({ token }: { token: string }) {
     <>
       {/* One control for a screen reader: a real button that opens the file picker; the file input itself is hidden. */}
       <input id="read-file" ref={fileRef} type="file" accept="image/*,application/pdf" hidden aria-hidden="true" tabIndex={-1} onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
-      <button type="button" className="big-btn main" disabled={busy} onClick={() => fileRef.current?.click()}>
+      <button type="button" className="big-btn main" aria-disabled={busy} onClick={() => { if (!busy) fileRef.current?.click(); }}>
         {busy ? t("reading") : t("choose_file")}
       </button>
       {busy ? <span className="loader" aria-hidden="true"><i /><i /><i /></span> : null}
@@ -159,7 +159,7 @@ export default function ReadScreen({ token }: { token: string }) {
 
   return (
     <div>
-      <h2 ref={resultRef} tabIndex={-1} style={{ marginTop: 0 }}>{res.title || ""}</h2>
+      <h2 ref={resultRef} tabIndex={-1} style={{ marginTop: 0 }}>{res.title || t("notice_untitled")}</h2>
       {res.sample ? <p className="notice-box" role="note">{t("sample_badge")}</p> : null}
       <ul className="verdict" aria-label={t("v_head")}>
         {nOk ? <li className="v ok"><IconCheck size={24} />{t("v_checked").replace("{n}", String(nOk))}</li> : null}

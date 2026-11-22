@@ -2,7 +2,7 @@
 
 /** Settings screen: 'My details' (kept on this phone only) and the display choices (text size, colours, spacing). */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useDisplay, type Look, type Size, type Space } from "@/lib/display";
 import { useT } from "@/lib/i18n";
 import { Status } from "./Shell";
@@ -18,9 +18,10 @@ const FIELDS = [
 ] as const;
 
 function Choice<T extends string>({ label, value, options, onPick }: { label: string; value: T; options: [T, string][]; onPick: (v: T) => void }) {
+  const id = useId();
   return (
-    <div role="group" aria-label={label}>
-      <h3>{label}</h3>
+    <div role="group" aria-labelledby={id}>
+      <h3 id={id}>{label}</h3>
       <div className="seg">
         {options.map(([v, text]) => (
           <button key={v} type="button" aria-pressed={value === v} onClick={() => onPick(v)}>{text}</button>
