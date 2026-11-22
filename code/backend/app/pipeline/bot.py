@@ -18,6 +18,7 @@ from ..db import sessionmaker, utcnow
 from ..errors import AppError, PermanentError
 from ..models import (
     College,
+    PersonalDeadline,
     Delivery,
     DeliveryStatus,
     ForwardCheck,
@@ -33,13 +34,13 @@ from ..models import (
 from ..providers import whatsapp
 from ..providers.base import ProviderError
 from ..providers.llm import gemini_answer
-from ..providers.media import prepare_document, sniff_mime
+from ..providers.media import mp3_to_voice_note, prepare_document, sniff_mime
 from ..providers.ocr import run_ocr
 from ..providers.stt import transcribe
-from ..providers.tts import synthesize
+from ..providers.tts import speak_uncached, synthesize
 from ..security import decrypt_phone, sign_student_token
 from ..storage import get_storage, sha256_bytes
-from . import campus
+from . import campus, linking, reader
 from .dates import speak_date
 from .jobs import enqueue
 from .notify import notice_link, t
@@ -59,15 +60,79 @@ CMD = {
     "no": {"no", "n", "cancel", "नाही", "नहीं", "नको", "रद्द"},
     "route": {"route", "routes", "map", "मार्ग", "रास्ता", "नकाशा"},
     "timetable": {"timetable", "time table", "वेळापत्रक", "समय सारणी"},
+    "language": {"language", "languages", "भाषा"},
+    "history": {"history", "इतिहास"},
+    "disconnect": {"disconnect", "unlink", "डिस्कनेक्ट"},
+    "delete": {"delete", "erase", "हटवा", "हटाएं", "मिटाओ"},
+    "delete_confirm": {"delete everything", "delete my data", "erase everything", "सर्व हटवा", "सब मिटाओ"},
+    "again": {"again", "repeat", "audio", "play", "पुन्हा", "फिर से", "सुनाओ"},
 }
+# The QR's pre-filled message is "Hi Samyukta, my link code is K7M2QX4P". A typed "link K7M2QX4P" works too. An ordinary sentence
+# that merely contains the word "link" does not match.
+_CODE = r"([A-HJ-NP-Z2-9]{8})"
+LINK_RE = re.compile(rf"(?:\blink code(?: is)?[\s:#-]{{1,3}}{_CODE}\b|^\s*/?link[\s:#-]{{1,3}}{_CODE}\s*$)", re.IGNORECASE)
+SAVE_RE = re.compile(r"^save\s*(\d{1,2})?$", re.IGNORECASE)
 BATCH_RE = re.compile(r"^(?:batch|बॅच|बैच)\s+(.{1,30})$", re.IGNORECASE)
 BOARD_WORDS = ("board", "snap", "फळा", "फलक", "बोर्ड", "ब्लैकबोर्ड", "lecture", "notes")
 LANG_WORDS = {"mr": {"marathi", "मराठी", "lang mr"}, "hi": {"hindi", "हिंदी", "lang hi"}, "en": {"english", "इंग्रजी", "lang en"}}
 JOIN_RE = re.compile(r"^(?:join|जॉईन|जॉइन)\s+([a-z0-9\-]{2,16})$", re.IGNORECASE)
 
 
+L = {
+    "welcome": {
+        "en": "Welcome to Samyukta. Send me a photo or PDF of a college notice and I will read it aloud and check every date against it. "
+        "I keep your phone number (encrypted) and your language. I keep the last notice for one hour so you can ask about it. "
+        "Send DELETE to erase everything. Send HELP for commands.",
+        "hi": "समयुक्ता में आपका स्वागत है। कॉलेज की सूचना की फ़ोटो या PDF भेजें, मैं उसे पढ़कर सुनाऊँगा और हर तारीख को सूचना से मिलाऊँगा। "
+        "मैं आपका फ़ोन नंबर (एन्क्रिप्टेड) और भाषा रखता हूँ। आख़िरी सूचना एक घंटे तक रखता हूँ ताकि आप उसके बारे में पूछ सकें। "
+        "सब मिटाने के लिए DELETE भेजें। कमांड के लिए HELP भेजें।",
+        "mr": "समयुक्तामध्ये स्वागत. महाविद्यालयाच्या सूचनेचा फोटो किंवा PDF पाठवा, मी ती वाचून दाखवीन आणि प्रत्येक तारीख सूचनेशी पडताळीन. "
+        "मी तुमचा फोन नंबर (एन्क्रिप्टेड) आणि भाषा ठेवतो. शेवटची सूचना एक तास ठेवतो, म्हणजे तुम्ही त्याबद्दल विचारू शकता. "
+        "सर्व पुसण्यासाठी DELETE पाठवा. कमांडसाठी HELP पाठवा.",
+    },
+    "menu": {
+        "en": "Send a photo or PDF of a notice. Then ask me about it by text or voice note. Commands: DEADLINES, AGAIN, SAVE 1, LANGUAGE, LINK, HISTORY, DISCONNECT, DELETE, STOP.",
+        "hi": "सूचना की फ़ोटो या PDF भेजें। फिर उसके बारे में लिखकर या वॉइस नोट से पूछें। कमांड: DEADLINES, AGAIN, SAVE 1, LANGUAGE, LINK, HISTORY, DISCONNECT, DELETE, STOP.",
+        "mr": "सूचनेचा फोटो किंवा PDF पाठवा. मग त्याबद्दल लिहून किंवा व्हॉइस नोटने विचारा. कमांड: DEADLINES, AGAIN, SAVE 1, LANGUAGE, LINK, HISTORY, DISCONNECT, DELETE, STOP.",
+    },
+    "got_it": {
+        "en": "Got it. Reading this notice now. It takes about half a minute.",
+        "hi": "ठीक है। मैं यह सूचना पढ़ रहा हूँ, इसमें आधा मिनट लगेगा।",
+        "mr": "ठीक आहे. मी ही सूचना वाचत आहे, अर्धा मिनिट लागेल.",
+    },
+    "dates_head": {"en": "Dates I checked against the notice:", "hi": "सूचना से मिलाई गई तारीखें:", "mr": "सूचनेशी पडताळलेल्या तारखा:"},
+    "unconfirmed": {
+        "en": "date not confirmed, please check with the college office",
+        "hi": "तारीख की पुष्टि नहीं हुई, कृपया कॉलेज कार्यालय से पूछें",
+        "mr": "तारखेची खात्री झाली नाही, कृपया महाविद्यालयाच्या कार्यालयात विचारा",
+    },
+    "next": {
+        "en": "Ask me anything about this notice, by text or voice note. Reply SAVE 1 to get reminders for the first date. Reply AGAIN to hear it once more.",
+        "hi": "इस सूचना के बारे में कुछ भी पूछें, लिखकर या वॉइस नोट से। पहली तारीख का रिमाइंडर पाने के लिए SAVE 1 भेजें। फिर से सुनने के लिए AGAIN भेजें।",
+        "mr": "या सूचनेबद्दल काहीही विचारा, लिहून किंवा व्हॉइस नोटने. पहिल्या तारखेची आठवण हवी असल्यास SAVE 1 पाठवा. पुन्हा ऐकण्यासाठी AGAIN पाठवा.",
+    },
+    "safety": {"en": "Safety check:", "hi": "सुरक्षा जाँच:", "mr": "सुरक्षा तपासणी:"},
+    "from_notice": {"en": "From the notice:", "hi": "सूचना में:", "mr": "सूचनेत:"},
+    "ask_first": {
+        "en": "Send me a photo or PDF of a notice first. Then you can ask me about it.",
+        "hi": "पहले मुझे सूचना की फ़ोटो या PDF भेजें। फिर आप उसके बारे में पूछ सकते हैं।",
+        "mr": "आधी मला सूचनेचा फोटो किंवा PDF पाठवा. मग तुम्ही त्याबद्दल विचारू शकता.",
+    },
+}
+
+
+def lt(key: str, lang: str) -> str:
+    return L[key].get(lang, L[key]["en"])
+
+
 def classify(text: str) -> tuple[str, str | None]:
-    clean = re.sub(r"\s+", " ", text.strip().lower())
+    clean = re.sub(r"\s+", " ", text.strip().lower()).lstrip("/")  # "/help" and "help" are the same
+    m = LINK_RE.search(text)
+    if m:
+        return "link", (m.group(1) or m.group(2)).upper()
+    m = SAVE_RE.match(clean)
+    if m:
+        return "save", m.group(1)
     m = JOIN_RE.match(clean)
     if m:
         return "join", m.group(1).upper()
@@ -112,6 +177,22 @@ async def upcoming_actions(s: AsyncSession, student: Student, days: int = 45) ->
     return [(a, n) for a, n in rows if not n.audience_tags or not tags or tags & set(n.audience_tags)]
 
 
+async def saved_deadlines_text(s: AsyncSession, student: Student) -> str:
+    from .steps import today_local
+
+    rows = (
+        await s.scalars(
+            select(PersonalDeadline)
+            .where(PersonalDeadline.student_id == student.id, PersonalDeadline.status == "confirmed", PersonalDeadline.due_date >= today_local())
+            .order_by(PersonalDeadline.due_date)
+            .limit(10)
+        )
+    ).all()
+    if not rows:
+        return ""
+    return "Your saved deadlines:\n" + "\n".join(f"{i}. {speak_date(r.due_date)}: {r.label}" for i, r in enumerate(rows, 1))
+
+
 def deadlines_text(items: list[tuple[NoticeAction, Notice]]) -> str:
     if not items:
         return "No upcoming deadlines in your college's published notices."
@@ -126,6 +207,11 @@ _ANSWERS: dict[tuple, str] = {}
 
 
 async def answer_question(s: AsyncSession, student: Student, question: str) -> str:
+    lang = student.preferred_lang or "en"
+    recent = await linking.recall_read(s, student)
+    if recent:  # the notice they just sent: answered from that notice only, and every date and number is checked against it
+        res = await reader.ask_notice(question, recent["text"], lang)
+        return res["answer"] + (f"\n\n{lt('from_notice', lang)} {res['evidence'][0]}" if res["evidence"] else "")
     mem = await campus.answer_from_memory(s, student, question)
     if mem:
         return mem["text"] + "\n\n(From your saved board photos.)"
@@ -139,6 +225,8 @@ async def answer_question(s: AsyncSession, student: Student, question: str) -> s
         )
     ).all() if student.college_id else []
     if not notices:
+        if not student.college_id:
+            return lt("ask_first", lang)
         return "I could not find any published notices for your college yet. Send JOIN followed by your college code to connect."
     # The same question about the same notices is answered once; a new or changed notice changes the key.
     cache_key = (student.college_id, student.preferred_lang, re.sub(r"\W+", " ", question.lower()).strip(), tuple(n.id for n in notices), tuple(n.version for n in notices))
@@ -197,6 +285,11 @@ async def handle_inbound(job: Job) -> None:
         await whatsapp.mark_read(job.payload.get("wa_message_id", ""))
         lang = student.preferred_lang or "en"
 
+        if not student.college_id and await first_contact(s, student, phone, msg, lang):
+            msg.status = "done"
+            await s.commit()
+            return
+
         # If a reply fails, the job retries the whole message. Every branch is safe to
         # repeat: join/lang/stop are idempotent and OCR results are cached.
         if msg.msg_type == "text" and msg.text:
@@ -221,11 +314,15 @@ async def handle_inbound(job: Job) -> None:
                 answer = await answer_question(s, student, question)
                 await reply(phone, f'You asked: "{question}"\n\n{answer}')
                 try:
-                    audio = await synthesize(answer, lang)
-                    from ..models import Rendition
-                    from .steps import send_voice
+                    if not student.college_id:
+                        # Student mode: spoken from memory, never cached or written to disk (the answer is about their own notice).
+                        await send_voice_bytes(phone, await speak_uncached(answer, lang))
+                    else:
+                        audio = await synthesize(answer, lang)
+                        from ..models import Rendition
+                        from .steps import send_voice
 
-                    await send_voice(phone, Rendition(lang=lang, text=answer, audio_key=audio.audio_key, voice_note_key=audio.voice_note_key))
+                        await send_voice(phone, Rendition(lang=lang, text=answer, audio_key=audio.audio_key, voice_note_key=audio.voice_note_key))
                 except ProviderError as exc:
                     log.info("spoken answer skipped: %s", exc)
         else:
@@ -234,9 +331,58 @@ async def handle_inbound(job: Job) -> None:
         await s.commit()
 
 
+def _has_code(text: str, code: str) -> bool:
+    """The access code as a whole word. A short code must not match inside an ordinary word."""
+    return bool(code) and re.search(rf"(?<!\w){re.escape(code)}(?!\w)", text, re.IGNORECASE) is not None
+
+
+async def first_contact(s: AsyncSession, student: Student, phone: str, msg: InboundMessage, lang: str) -> bool:
+    """A student with no college is a student-mode user. Before their first answer they get the privacy notice (and must
+    give the access code if the deployment has one). Returns True if this message was used up by that step."""
+    if student.consent_at:
+        return False
+    code = get_settings().demo_access_code
+    text = msg.text or ""
+    kind = classify(text)[0] if msg.msg_type == "text" else ""
+    if kind == "join":  # joining a college has its own welcome and consent
+        return False
+    if code and kind != "link" and not _has_code(text, code):
+        await reply(phone, "To start, send the access code the Samyukta team gave you.")
+        return True
+    student.consent_at = utcnow()
+    await s.commit()
+    await reply(phone, lt("welcome", lang))
+    # A greeting or the access code itself is fully answered by the welcome; anything else (a photo, a question, a link code) is still handled.
+    return kind in ("help", "start") or bool(code and _has_code(text, code) and kind != "link")
+
+
 async def handle_text(s: AsyncSession, student: Student, phone: str, text: str, lang: str, resent: int) -> None:
     kind, arg = classify(text)
-    if kind == "join":
+    if kind == "link":
+        await reply(phone, await linking.claim_link(s, student, arg))
+    elif kind == "disconnect":
+        done = await linking.disconnect(s, student)
+        await reply(phone, "Disconnected. I have forgotten this phone number. Your saved deadlines stay in your Samyukta account on the website." if done else "This number was not connected to a website account.")
+    elif kind == "delete":
+        await reply(phone, "This erases your phone number, saved deadlines, reminders and everything else I hold about you. To confirm, send DELETE EVERYTHING.")
+    elif kind == "delete_confirm":
+        await linking.erase_student(s, student)
+        await reply(phone, "Everything is erased. You can message me again any time to start fresh.")
+    elif kind == "history":
+        recent = await linking.recall_read(s, student)
+        saved = await saved_deadlines_text(s, student)
+        head = (
+            "I do not keep a history of your notices. That is on purpose. "
+            + (f"I am keeping only the last one, \"{recent.get('title') or 'your notice'}\", for one hour so you can ask about it." if recent else "Right now I am keeping no notice.")
+        )
+        await reply(phone, head + (f"\n\n{saved}" if saved else ""))
+    elif kind == "language":
+        await reply(phone, "Send ENGLISH, HINDI or MARATHI. / हिंदी के लिए HINDI भेजें। / मराठीसाठी MARATHI पाठवा.")
+    elif kind == "again":
+        await handle_again(s, student, phone, lang)
+    elif kind == "save":
+        await handle_save(s, student, phone, arg, lang)
+    elif kind == "join":
         college = await s.scalar(select(College).where(College.code == arg))
         if not college:
             await reply(phone, f"No college found with code {arg}. Please check the code with your college office.")
@@ -264,7 +410,12 @@ async def handle_text(s: AsyncSession, student: Student, phone: str, text: str, 
         await s.commit()
         await reply(phone, "Notices and reminders are on again.")
     elif kind == "deadlines":
-        await reply(phone, deadlines_text(await upcoming_actions(s, student)))
+        items = await upcoming_actions(s, student)
+        saved = await saved_deadlines_text(s, student)
+        if not items and saved:
+            await reply(phone, saved)
+        else:
+            await reply(phone, deadlines_text(items) + (f"\n\n{saved}" if saved else ""))
     elif kind == "inbox":
         base = get_settings().frontend_base_url.rstrip("/")
         await reply(phone, f"Your notices: {base}/me?t={sign_student_token(student.id)}")
@@ -285,7 +436,7 @@ async def handle_text(s: AsyncSession, student: Student, phone: str, text: str, 
         await reply(phone, f"Campus walkthroughs for your college: {base}/routes?c={student.college_id}" if student.college_id else "Send JOIN followed by your college code first.")
     elif kind == "help":
         if not student.college_id:
-            await reply(phone, "Welcome to Samyukta. Send JOIN followed by your college code (for example JOIN FERG) to get your college's notices.")
+            await reply(phone, lt("menu", lang))
         else:
             await reply(phone, ("Sent the notices you missed above.\n\n" if resent else "") + t("menu", lang))
     else:
@@ -342,7 +493,127 @@ async def handle_snap(s: AsyncSession, student: Student, phone: str, msg: Inboun
     await reply(phone, f"Saved{' under ' + sn.subject if sn.subject else ''}. I am reading it now. Later you can ask me about it by voice or text.")
 
 
+async def send_voice_bytes(phone: str, mp3: bytes) -> None:
+    """Send audio held in memory as a WhatsApp voice note (OGG/Opus), or as an MP3 if ffmpeg is missing. Nothing is written to disk."""
+    ogg = await mp3_to_voice_note(mp3)
+    data, mime, name = (ogg, "audio/ogg", "notice.ogg") if ogg else (mp3, "audio/mpeg", "notice.mp3")
+    await whatsapp.send_audio(phone, await whatsapp.upload_media(data, mime, name))
+
+
+def compose_read(res: dict, lang: str) -> str:
+    """The text twin of the voice note: the title, the spoken answer, and each date marked checked or not."""
+    lines = [res.get("title") or "", "", res["spoken_text"]]
+    acts = [a for a in res.get("actions", []) if a.get("due_date")]
+    if acts:
+        lines += ["", lt("dates_head", lang)]
+        for i, a in enumerate(acts[:8], 1):
+            if a["status"] == "verified":
+                when = a["date_spoken"] + (f", {a['due_time']}" if a.get("due_time") else "")
+                lines.append(f"{i}. {a['label']}: {when}.")
+            else:
+                lines.append(f"{i}. {a['label']}: {lt('unconfirmed', lang)}.")
+    quiet = [f["text"] for f in res.get("safety", []) if f["level"] != "caution"]  # cautions are already the first sentence of the reading
+    if quiet:
+        lines += ["", lt("safety", lang)] + [f"- {q}" for q in quiet[:3]]
+    lines += ["", lt("next", lang)]
+    return "\n".join(lines).strip()[:4000]
+
+
+async def handle_personal_read(s: AsyncSession, student: Student, phone: str, msg: InboundMessage) -> None:
+    """Student mode: the same engine as the website. Reads the notice, checks every date, replies with text and a voice
+    note. Nothing about the notice is kept except a sealed copy for one hour, so the student can ask about it."""
+    s_ = get_settings()
+    lang = student.preferred_lang or "en"
+    since = utcnow() - timedelta(hours=24)
+    used = await s.scalar(
+        select(func.count(InboundMessage.id)).where(
+            InboundMessage.student_id == student.id, InboundMessage.msg_type.in_(("image", "document")), InboundMessage.received_at >= since
+        )
+    )
+    if int(used or 0) > s_.student_daily_forward_limit:
+        await reply(phone, "You have sent many notices today. Please try again tomorrow.")
+        return
+    try:
+        data, _mime = await whatsapp.download_media(msg.media_id)
+    except ProviderError as exc:
+        if exc.retryable:
+            raise
+        await reply(phone, "I could not open that file. Please send the photo or PDF again.")
+        return
+    await reply(phone, lt("got_it", lang))
+    earlier = await linking.recall_read(s, student)  # the notice from the last hour, if any: a correction may follow it
+    try:
+        res = await reader.read_notice(data, lang)
+    except AppError as exc:
+        # Written for people ("This PDF is password protected..."), so it is sent as it is. No retry: it would only repeat the same message.
+        await reply(phone, exc.message if exc.status_code < 500 else "I could not read this notice just now. Please send it again in a minute.")
+        return
+    text = res.pop("_ocr_text", "")
+    keep = [{"label": a["label"], "due_date": a["due_date"], "due_time": a.get("due_time"), "status": a["status"]} for a in res["actions"] if a.get("due_date")]
+    changes = reader.diff_actions(earlier["actions"], keep) if earlier and res["is_notice"] else []
+    if changes:  # first: the most important thing for someone who may be about to act on the old date
+        await reply(phone, reader.change_text(changes, lang))
+    await reply(phone, compose_read(res, lang))
+    if res.get("audio_b64"):
+        import base64
+
+        try:
+            await send_voice_bytes(phone, base64.b64decode(res["audio_b64"]))
+        except ProviderError as exc:
+            log.info("voice note skipped: %s", exc)  # the text already went out; a missing voice note must not repeat it
+    if res["is_notice"] and text:
+        await linking.remember_read(s, student, {"text": text[:30000], "title": res.get("title"), "spoken": res["spoken_text"], "lang": lang, "actions": keep})
+
+
+async def handle_again(s: AsyncSession, student: Student, phone: str, lang: str) -> None:
+    recent = await linking.recall_read(s, student)
+    if not recent:
+        await reply(phone, lt("ask_first", lang))
+        return
+    await reply(phone, recent["spoken"])
+    try:
+        await send_voice_bytes(phone, await speak_uncached(recent["spoken"], lang))
+    except ProviderError as exc:
+        log.info("voice note skipped: %s", exc)
+
+
+async def handle_save(s: AsyncSession, student: Student, phone: str, which: str | None, lang: str) -> None:
+    """Smart Deadline Guardian: only a date that was checked against the notice can become a reminder, and only after the student says YES."""
+    from datetime import date as _date
+
+    from .dates import speak_date_lang
+    from .steps import today_local
+
+    recent = await linking.recall_read(s, student)
+    acts = [a for a in (recent or {}).get("actions", []) if a.get("due_date")]
+    if not acts:
+        await reply(phone, "I have no dates from a notice to save. Send me a notice first.")
+        return
+    i = int(which or 1) - 1
+    if not 0 <= i < len(acts):
+        await reply(phone, f"Please choose a number from 1 to {len(acts)}.")
+        return
+    a = acts[i]
+    if a["status"] != "verified":
+        await reply(phone, "I will not save that date because I could not confirm it against the notice. Please check it with the college office.")
+        return
+    due = _date.fromisoformat(a["due_date"])
+    if due < today_local():
+        await reply(phone, "That date has already passed.")
+        return
+    await s.execute(
+        PersonalDeadline.__table__.update().where(PersonalDeadline.student_id == student.id, PersonalDeadline.status == "pending").values(status="cancelled")
+    )
+    s.add(PersonalDeadline(student_id=student.id, label=a["label"][:300], due_date=due, due_time=a.get("due_time"), transcript="From a notice I read", source="notice", status="pending", needs_date=False))
+    await s.commit()
+    when = speak_date_lang(due, lang) + (f", {a['due_time']}" if a.get("due_time") else "")
+    await reply(phone, f"Save a reminder for: {a['label']}, {when}? Reply YES to save, or NO to cancel.")
+
+
 async def handle_forward(s: AsyncSession, student: Student, phone: str, msg: InboundMessage) -> None:
+    if not student.college_id:
+        await handle_personal_read(s, student, phone, msg)
+        return
     s_ = get_settings()
     if await forward_count_today(s, student) >= s_.student_daily_forward_limit:
         await reply(phone, "You have checked many notices today. Please try again tomorrow.")

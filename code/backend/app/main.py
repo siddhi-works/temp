@@ -94,6 +94,8 @@ def create_app() -> FastAPI:
     routers = [system.router, public.router, me.router, me.public_router]
     if s.college_mode:
         routers += [admin.router, notices.router, notices.review_router, impact.router, webhook.router, routes.router]
+    elif s.whatsapp_ready:
+        routers += [webhook.router]  # students can message the official WhatsApp number even in a student-only deployment
     for r in routers:
         app.include_router(r)
     return app

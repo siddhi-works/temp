@@ -22,7 +22,7 @@ flowchart TB
 
 ## 2. The student "read a notice" request
 
-Code: `code/backend/app/routers/me.py` (`read_notice` and `_read_notice`).
+Code: the engine is `code/backend/app/pipeline/reader.py` (`read_notice`). The website calls it from `routers/me.py`; the WhatsApp bot calls the same function from `pipeline/bot.py` (`handle_personal_read`). There is one pipeline, and a date is verified the same way on both.
 
 | Step | What happens | Why |
 |---|---|---|
@@ -57,6 +57,8 @@ For the student's own details, `verify_personal` (profile.py) additionally requi
 | `job` | Background work (staff path, push alerts) | No |
 | `notice`, `college`, `staff_user` | The staff desk path: a college publishing its own notices | Staff names; staff tokens are hashed |
 | `ocr_cache`, `audio_cache` | Staff path only. Student reads bypass them | Not used for students |
+| `link_code` | Hashes of the one-time QR code and the 4-digit confirm code that connect a website account to a WhatsApp number | No (hashes, expire in 10 minutes) |
+| `recent_read` | The last notice read on WhatsApp, encrypted, for one hour | Yes while it exists; erased on expiry, DELETE or the next read |
 
 ## 5. Resilience
 

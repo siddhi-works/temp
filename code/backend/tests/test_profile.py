@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from app.errors import AppError
 from app.pipeline.profile import Profile, focus_text, parse_profile, rule_based_personal, verify_personal
-from app.routers.me import _first_pages
+from app.pipeline.reader import _first_pages
 
 from .conftest import notice_image
 
@@ -191,7 +191,7 @@ def _extraction(personal: dict | None):
 @pytest.fixture
 def faked(monkeypatch):
     from app.providers.ocr import OcrResult
-    from app.routers import me
+    from app.pipeline import reader as me  # the engine both the website and WhatsApp call
 
     from app.routers import public
 
@@ -262,7 +262,7 @@ async def test_without_details_nothing_personal_is_added(client, faked):
 
 @pytest.mark.asyncio
 async def test_when_the_ai_fails_the_students_own_line_is_still_found(client, faked, monkeypatch):
-    from app.routers import me
+    from app.pipeline import reader as me  # the engine both the website and WhatsApp call
 
     async def boom(*a, **k):
         raise RuntimeError("model overloaded")

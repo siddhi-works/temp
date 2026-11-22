@@ -3,6 +3,8 @@
 /** First screen for a new student: one Start button, no account. Creates an anonymous session. */
 
 import { useState } from "react";
+import Logo from "@/components/Logo";
+import { IconEar, IconShare, IconShield } from "@/components/Icons";
 import { api } from "@/lib/api";
 import { friendlyError, useT } from "@/lib/i18n";
 import { Screen, Status } from "./Shell";
@@ -32,6 +34,10 @@ export default function Welcome({ onToken, expired }: { onToken: (t: string) => 
   };
   return (
     <Screen title={t("welcome_title")}>
+      <div className="hero">
+        <Logo />
+        <p className="haiku"><span>{t("haiku_1")}</span><span>{t("haiku_2")}</span><span>{t("haiku_3")}</span></p>
+      </div>
       <p>{t("welcome_lede")}</p>
       {expired ? <p className="notice-box">{t("session_expired")}</p> : null}
       <details open={showCode} onToggle={(e) => setShowCode((e.currentTarget as HTMLDetailsElement).open)} style={{ margin: "20px 0" }}>
@@ -46,6 +52,12 @@ export default function Welcome({ onToken, expired }: { onToken: (t: string) => 
       </div>
       <Status text={waking ? t("waking") : err} tone={waking ? undefined : "error"} />
       <p className="muted" style={{ marginTop: 24 }}>{t("welcome_privacy")}</p>
+      <h2>{t("steps_h")}</h2>
+      <ol className="steps">
+        <li><span className="ic"><IconShare /></span>{t("step1")}</li>
+        <li><span className="ic"><IconEar /></span>{t("step2")}</li>
+        <li><span className="ic"><IconShield /></span>{t("step3")}</li>
+      </ol>
     </Screen>
   );
 }

@@ -19,7 +19,7 @@ Samyukta reads a photo or PDF of a college notice aloud in English, Hindi or Mar
 
 ## 3. State today
 
-**Working and tested:** reading notices in 3 languages; verified dates; personal "For you" answers; the deadline recorder; four colour themes and three text sizes; interface in 3 languages; security headers; model, key and provider failover. 116 backend tests pass, lint and types are clean, and the accessibility test (axe including AAA rules) passes.
+**Working and tested:** reading notices in 3 languages; verified dates; personal "For you" answers; the deadline recorder; four colour themes and three text sizes; interface in 3 languages; security headers; model, key and provider failover. 179 backend tests pass, lint and types are clean, and the accessibility test (axe including AAA rules) passes.
 
 **Not done:**
 - A consented test with a real blind or low-vision student. This is the most important gap.

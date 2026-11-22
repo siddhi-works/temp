@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     gemini_api_key_3: str = ""
     setup_token: str = ""
     demo_access_code: str = ""
+    # Reads allowed per minute across ALL students. A hard ceiling on spend that holds even if per-client limits are bypassed.
+    global_reads_per_minute: int = 30
 
     # The college side (staff desk, publishing, walkthroughs, WhatsApp) is off by default: Samyukta is a student-facing product.
     # Set COLLEGE_MODE=true to mount it again. When off, none of those endpoints exist, including first-time admin setup.
@@ -86,6 +88,9 @@ class Settings(BaseSettings):
     whatsapp_token: str | None = None
     whatsapp_phone_number_id: str | None = None
     whatsapp_verify_token: str = "suchana-verify"
+    # The public WhatsApp number students message, digits with country code (e.g. 919876543210). Used for the QR code and
+    # the "Open WhatsApp" link on the website. Empty = the website hides the WhatsApp card.
+    whatsapp_business_number: str = ""
     whatsapp_app_secret: str | None = None
     whatsapp_graph_version: str = "v23.0"
     # Approved utility template used outside the 24-hour customer service window.
@@ -111,6 +116,11 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.env.lower() == "prod"
+
+    @property
+    def whatsapp_ready(self) -> bool:
+        """The student-facing WhatsApp assistant runs whenever the Cloud API credentials are set, even without COLLEGE_MODE."""
+        return bool(self.whatsapp_token and self.whatsapp_phone_number_id)
 
     @property
     def cors_list(self) -> list[str]:

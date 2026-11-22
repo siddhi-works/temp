@@ -17,7 +17,7 @@ type Opts = {
   method?: string;
   json?: unknown;
   form?: FormData;
-  token?: string; // student token, sent as ?t=
+  token?: string; // student token, sent in the Authorization header (never in the URL)
   staff?: string; // staff bearer token
   query?: Record<string, string | undefined>;
   timeoutMs?: number;
@@ -25,10 +25,10 @@ type Opts = {
 
 export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
   const params = new URLSearchParams();
-  if (opts.token) params.set("t", opts.token);
   for (const [k, v] of Object.entries(opts.query || {})) if (v !== undefined) params.set(k, v);
   const url = path + (params.toString() ? (path.includes("?") ? "&" : "?") + params.toString() : "");
   const headers: Record<string, string> = {};
+  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   if (opts.staff) headers.Authorization = `Bearer ${opts.staff}`;
   let body: BodyInit | undefined;
   if (opts.json !== undefined) {

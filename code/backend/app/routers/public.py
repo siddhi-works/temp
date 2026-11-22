@@ -9,7 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import markdown as md
-from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth_deps import student_token
 from ..config import get_settings
 from ..db import get_session, utcnow
 from ..errors import AppError, NotFound, TooManyRequests
@@ -40,11 +41,24 @@ VISIBLE = (NoticeStatus.published, NoticeStatus.superseded)
 _hits: dict[str, deque] = defaultdict(deque)
 
 
+_calls = 0
+
+
+def _sweep(now: float) -> None:
+    """Forget keys that have been quiet for a minute, so the table does not grow with every visitor."""
+    for k in [k for k, q in _hits.items() if not q or now - q[-1] > 60]:
+        del _hits[k]
+
+
 def rate_limit(request: Request, per_minute: int, key: str | None = None) -> None:
     """Per client address, or per `key` (a student id) so a whole classroom behind one Wi-Fi address is not blocked together."""
     ip = key or request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
+    global _calls
     q = _hits[ip]
     now = time.monotonic()
+    _calls += 1
+    if _calls % 256 == 0:
+        _sweep(now)
     while q and now - q[0] > 60:
         q.popleft()
     if len(q) >= per_minute:
@@ -139,7 +153,7 @@ async def _student(s: AsyncSession, token: str) -> Student:
 
 
 @router.get("/api/me/inbox")
-async def inbox(t: str = Query(..., description="signed token from the WhatsApp link"), s: AsyncSession = Depends(get_session)):
+async def inbox(t: str = Depends(student_token), s: AsyncSession = Depends(get_session)):
     st = await _student(s, t)
     college = await s.get(College, st.college_id) if st.college_id else None
     notices = []
@@ -187,7 +201,7 @@ class Prefs(BaseModel):
 
 
 @router.patch("/api/me/preferences")
-async def preferences(body: Prefs, t: str = Query(...), s: AsyncSession = Depends(get_session)):
+async def preferences(body: Prefs, t: str = Depends(student_token), s: AsyncSession = Depends(get_session)):
     st = await _student(s, t)
     if body.preferred_lang is not None:
         if body.preferred_lang not in LANG_NAMES:
@@ -216,6 +230,7 @@ async def join(request: Request, body: JoinIn, s: AsyncSession = Depends(get_ses
 
     import hmac
 
+    rate_limit(request, 120, key="global:join")  # a ceiling for the whole service: the per-address limit below can be spoofed
     rate_limit(request, 40)  # generous: many students can share one college Wi-Fi address
     expected = get_settings().demo_access_code
     if expected and not hmac.compare_digest(expected.lower(), (body.code or "").strip().lower()):

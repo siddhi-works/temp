@@ -29,6 +29,7 @@ Environment variables (Render, Environment tab). Copy the values from your local
 | `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_MODEL` | `gemini-2.5-flash`. Use different Google accounts for the extra keys |
 | `GEMINI_LIGHT_MODEL` | leave empty |
 | `GEMINI_FALLBACK_MODELS` | optional; default `gemini-3.1-flash-lite` |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_BUSINESS_NUMBER` | optional: the WhatsApp assistant. Setting the token turns it on, and production then refuses to start without the app secret. Change the verify token from its default. Steps: `docs/WHATSAPP.md` |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | vibration alerts; subject is `mailto:` plus a real email |
 | `PUBLIC_BASE_URL`, `FRONTEND_BASE_URL`, `CORS_ORIGINS` | your Render URL, no trailing slash |
 | `COLLEGE_MODE` | leave unset. The college side (staff desk, publishing, walkthroughs, WhatsApp) stays off |

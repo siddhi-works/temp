@@ -22,7 +22,11 @@ What we protect, from whom, how, and how we know it works. Every control marked 
 | Stranger drains the AI budget | Access code on sign-up, per-student read limit, generous per-client sign-up limit, hard spend cap | **(tested)** access code and rate limits |
 | Rate limits unfairly block a classroom on one Wi-Fi address | Reads are limited per student, not per address | **(tested)** |
 | Huge, empty or disguised files | 15 MB limit, empty check, type from the first bytes (an `.exe` renamed `.pdf` is refused), page caps, locked PDFs refused | **(tested)** |
-| Data left behind | Student reads bypass the OCR and audio caches; audio is returned inline; the profile is never written | **(tested)** `test_personal_read_speaks_the_verified_seat_and_stores_nothing` |
+| Data left behind | Student reads bypass the OCR and audio caches; audio is returned inline; the profile is never written. On WhatsApp the scan text is kept encrypted for one hour only, and the file and audio are never kept | **(tested)** `test_personal_read_speaks_the_verified_seat_and_stores_nothing`, `test_nothing_about_the_notice_is_stored_except_a_sealed_copy_for_one_hour` |
+| Someone photographs the WhatsApp QR and links their own number to a student's account | The QR holds a one-time code only; linking also needs a 4-digit code that WhatsApp sends to the claiming phone and the signed-in website session types in. Five wrong tries cancel it; the website shows the last four digits of the claimant | **(tested)** `test_someone_who_photographs_the_qr_cannot_link_their_number`, `test_five_wrong_codes_cancel_the_link` |
+| A forged or old WhatsApp webhook | Meta's X-Hub-Signature-256 is checked on the raw body; production refuses to start without the app secret; duplicates are dropped by a unique message id | `test_webhook_duplicates_are_ignored`, `test_security` |
+| AI answers a question with a date or number that is not in the notice | Every date, weekday and number in the answer is checked against the scan; failures are marked unverified; if the AI is down the closest scan lines are quoted | **(tested)** `test_grounding_check_rules` |
+| Someone floods the WhatsApp number to spend the AI budget | A first message needs the access code when one is set; a daily limit per student; the existing spend cap | **(tested)** `test_the_access_code_gates_a_new_whatsapp_student`, `test_the_daily_limit_stops_a_flood` |
 | Personal data cached by browsers or proxies | `Cache-Control: no-store` on personal responses | **(tested)** |
 | Clickjacking, content sniffing, referrer leaks, third-party scripts | Strict Content-Security-Policy, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, HSTS, microphone limited to this site | **(tested)** headers; CSP checked in a real browser |
 | Leaked secrets | Environment variables only; `.env` ignored by git and Docker; production refuses to start with placeholder secrets | **(tested)** |
@@ -37,7 +41,9 @@ What we protect, from whom, how, and how we know it works. Every control marked 
 | Scanned text | Never stored | n/a | Cached by file hash |
 | Spoken audio | Never stored | n/a | Cached |
 | Student's details (class, roll no.) | Browser only; sent with the request, not written | n/a | n/a |
-| Identity | Random id and language, no name, no phone | Same | Staff names; tokens hashed |
+| Identity | Random id and language, no name, no phone. A student who links WhatsApp also has their phone number, encrypted, until they disconnect or send DELETE | Same | Staff names; tokens hashed |
+| A notice read on WhatsApp | Encrypted copy of the scan text for one hour (so the student can ask about it), then erased; erased at once by DELETE or by the next notice | n/a | n/a |
+| Link codes | Only hashes of the QR code and the 4-digit code, valid 10 minutes | n/a | n/a |
 | Logs | Method, path, status, time, request id (no bodies, no details) | Same | Same |
 
 The student only creates a stored record when they **choose to save a deadline**, and only for that deadline. The About page says this in all three languages.

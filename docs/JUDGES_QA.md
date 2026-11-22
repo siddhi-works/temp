@@ -17,15 +17,21 @@ Blind, low-vision and dyslexic students in colleges that publish scanned notices
 It opens from a link, installs to the home screen, appears in Android's Share menu, and TalkBack reads it natively. No store review, one codebase. Native would cost weeks and hand-labelled controls.
 
 **5. Why not WhatsApp?**
-Notices already arrive there, so the Share menu starts the flow from WhatsApp. Replying through WhatsApp needs Meta business verification, and unofficial libraries break its terms. The code exists and is switched off.
+We are on WhatsApp, through Meta's official Cloud API only (no WhatsApp Web pairing, no unofficial library). A student sends a notice to the Samyukta number and gets the same verified reading, as text and a voice note, and can ask questions about it. The website and WhatsApp can be linked with a QR code and a two-step check, so deadlines and reminders follow the student. It runs when the number's credentials are set; until Meta approves a number, only registered test numbers can use it.
 
 **5b. Is there an admin or staff side?**
 The code for a college-side desk exists, but the product is deliberately student-only: it is switched off, and while off its endpoints do not exist. That removes a whole attack surface (including admin setup) and keeps the demo about the student. It can be switched on for colleges that want human-approved official notices.
 
+**5b. How do you protect students from fake fee notices?**
+A safety check reads the notice for payment to a personal UPI ID or mobile number, shortened or look-alike links, OTP or PIN requests and "pay within 24 hours" wording. It says what it found and to confirm with the college office. It never calls a notice fake, because real ones also ask for fees. It is code, not AI, and it has tests for the false alarms (an email address, a contact number, "never share your OTP"). It will miss fraud that uses no pattern we know.
+
+**5c. How does a student know a date is real?**
+Each checked date shows the exact line of the scan it came from, can be read aloud, and can be added to the phone's calendar. A date we could not check shows no proof, says "not confirmed" in words and an icon, and cannot be saved as a reminder.
+
 ## Privacy and security
 
 **6. What do you store?**
-For a read: nothing. Not the file, the text, the summary, the audio or the student's details. The student's details stay in their browser. The only stored record is a deadline the student chooses to save. (Security, section 3.)
+For a read on the website: nothing. On WhatsApp: the notice is kept encrypted for one hour so the student can ask about it, then erased. The file, the summary and the audio are never stored. If a student links WhatsApp we store their phone number, encrypted, until they disconnect or send DELETE. A deadline the student chooses to save is stored. (Security, section 3.)
 
 **7. How is personalisation private?**
 Class and roll number live on the phone and travel only inside the request that needs them. The server never writes them, and the AI's answer about "you" is accepted only if the quoted line names the student's own roll number, name or class.
@@ -54,7 +60,7 @@ The student path is stateless, so scaling is adding instances and AI quota. Toda
 Sarvam is built for Indian languages and voice; Gemini adds vision and structured output. Each is behind a small adapter and a failover chain, so either can be swapped or lost without touching the logic.
 
 **15. How is it tested?**
-116 automated tests: the full flow, injected failures (provider outages, quota errors), performance budgets, security guardrails, and personal insight (including "a claim about someone else's row is dropped"). Plus an accessibility test that runs axe, keyboard and size checks on every screen in every theme.
+179 automated tests: the full flow, injected failures (provider outages, quota errors), performance budgets, security guardrails, and personal insight (including "a claim about someone else's row is dropped"). Plus an accessibility test that runs axe, keyboard and size checks on every screen in every theme.
 
 **16. What is your CI?**
 A GitHub Actions workflow runs the backend tests, lints, type-checks and builds the frontend on every push.

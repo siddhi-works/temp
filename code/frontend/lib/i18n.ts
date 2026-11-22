@@ -5,6 +5,8 @@
 import { useEffect, useState } from "react";
 import { EXTRA } from "./i18n-extra";
 import { MORE } from "./i18n-more";
+import { UI } from "./i18n-ui";
+import { WA } from "./i18n-wa";
 
 export type Lang = "en" | "hi" | "mr";
 export const LANGS: { code: Lang; name: string }[] = [
@@ -193,7 +195,7 @@ const D: Record<Lang, Record<string, string>> = {
   },
 };
 
-for (const l of Object.keys(EXTRA) as Lang[]) Object.assign(D[l], EXTRA[l], MORE[l]);
+for (const l of Object.keys(EXTRA) as Lang[]) Object.assign(D[l], EXTRA[l], MORE[l], WA[l], UI[l]);
 
 /** A friendly message in the chosen language for the errors the reading screens can meet; the server's own text is the fallback. */
 export function friendlyError(e: unknown, t: (k: string) => string): string {

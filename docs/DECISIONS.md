@@ -21,8 +21,8 @@ Each entry: the decision, the alternative we rejected, and the trade-off we acce
 **D5. Installable web app (PWA), not native, not an extension.** Opens from a link, installs to the home screen, appears in Android's Share menu, works with TalkBack, and needs no store review.
 *Rejected:* native app (weeks, hand-labelled controls, store review), browser extension (not on phones, where our users are).
 
-**D6. Web app before WhatsApp.** WhatsApp is where notices arrive, and our Share-menu flow starts from there. Sending replies through WhatsApp needs Meta business verification; unofficial libraries break WhatsApp's terms and put a real number at risk.
-*Rejected:* an unofficial WhatsApp library. *Cost:* students forward through the Share menu, not to a number. The WhatsApp code exists and is switched off.
+**D6. Web app first, then official WhatsApp.** WhatsApp is where notices arrive. The web app and its Share-menu flow came first because sending replies through WhatsApp needs a Meta business account; unofficial libraries break WhatsApp's terms and put a real number at risk. The assistant now exists on the official Cloud API (D21), and it is on only when its credentials are set.
+*Rejected:* an unofficial WhatsApp library (Baileys, whatsapp-web.js, QR session pairing). *Cost:* a student can only reach the assistant on a number that is registered with Meta, and messages outside the 24-hour window need an approved template.
 
 ## AI
 
@@ -65,3 +65,25 @@ Each entry: the decision, the alternative we rejected, and the trade-off we acce
 **D19. Real buttons and one control per action.** A hidden file input plus a styled label was announced twice by a screen reader; it is now one button.
 
 **D20. Short paragraphs and one focused title per screen.** Results are split into one or two sentences each, and each screen moves focus to its title so the screen reader says where you are.
+
+## WhatsApp (added after the first review)
+
+**D21. One engine, two channels.** The website and the WhatsApp bot both call `pipeline/reader.py`. There is no second AI pipeline, so a date is verified the same way wherever the student asks.
+*Rejected:* a separate WhatsApp reader (what the first college-only bot did). *Cost:* both channels share the same two-at-a-time memory limit.
+
+**D22. Linking needs two proofs, not a phone number.** The website shows a QR with a random one-time code; WhatsApp replies with a 4-digit code; the student types it on the website. A photographed QR cannot link anyone's number, and the website shows the last four digits of whoever claimed it.
+*Rejected:* linking on the first matching message (anyone who sees the QR could hijack the reminders). *Cost:* one extra step.
+
+**D23. "Nothing is stored" now has two named exceptions, both opt-in by use and both short.** (1) A student who links WhatsApp has an encrypted phone number stored, until they disconnect or delete. (2) A notice read on WhatsApp is kept encrypted for one hour so the student can ask about it; the website keeps no copy at all (an encrypted token goes to the phone). Everything else in D12 still holds.
+*Rejected:* keeping a history of notices. *Cost:* the change detector cannot compare against last month's notice, only two notices given together.
+
+**D25. Every checked date shows its proof.** The line of the scan that backs a date is returned and shown with it; a date that could not be checked shows none and says so in words and with an icon, never by colour alone.
+*Rejected:* a bare "verified" badge. *Cost:* the result screen is longer.
+
+**D26. A safety check that states facts and never says "scam".** Payment to a UPI ID or a mobile number, short and look-alike links, OTP or PIN requests and rush-to-pay wording are found by code, spoken first when serious, and always end with "confirm with the college office". Real notices also ask for fees and contain links, so it never calls a notice fake. Advice such as "never share your OTP" is not flagged.
+*Rejected:* an AI judgement of whether a notice is genuine. *Cost:* it misses fraud that uses no pattern we know, which the judges Q&A states plainly.
+
+**D27. Reminders go to the phone's own calendar.** "Add to calendar" builds a standard file on the phone from checked dates only, with alarms a day before and on the day. It needs no server and no WhatsApp window.
+
+**D24. Questions are answered from one notice, and the answer is checked.** The AI proposes; code checks that every date, weekday and number in the answer is in the scan; if not, the answer says so. If the AI is down, the closest lines of the scan are quoted.
+

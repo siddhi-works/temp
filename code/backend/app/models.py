@@ -473,3 +473,33 @@ class OutboundMessage(Base):
     delivery_id: Mapped[str | None] = mapped_column(ForeignKey("delivery.id"), index=True)
     status: Mapped[str] = mapped_column(String(16), default="sent")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class LinkCode(Base):
+    """Links a website session to a WhatsApp number. Two secrets, both stored only as hashes:
+    the code in the QR / pre-filled message (proves the sender saw the QR) and a short confirm code the bot
+    sends back to WhatsApp, which the person types on the website (proves the website session and the phone
+    are the same person). A photographed QR alone therefore cannot link anyone's number."""
+
+    __tablename__ = "link_code"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    student_id: Mapped[str] = mapped_column(ForeignKey("student.id", ondelete="CASCADE"), index=True)  # the website session
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    wa_student_id: Mapped[str | None] = mapped_column(String(32))  # set when the code arrives on WhatsApp
+    confirm_hash: Mapped[str | None] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class RecentRead(Base):
+    """The last notice a student read on WhatsApp, sealed (encrypted) for one hour so they can ask questions about it.
+    One row per student; replaced by the next read; erased by DELETE or when it expires."""
+
+    __tablename__ = "recent_read"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    student_id: Mapped[str] = mapped_column(ForeignKey("student.id", ondelete="CASCADE"), unique=True)
+    sealed: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)

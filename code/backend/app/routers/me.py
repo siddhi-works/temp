@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import base64
-import re
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
@@ -12,29 +10,27 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth_deps import student_token
 from ..config import get_settings
 from ..db import get_session
-from ..errors import AppError, NotFound, PermanentError
+from ..errors import AppError, NotFound
 from ..models import PersonalDeadline, PushSubscription, Snap, Student
-from ..pipeline import campus
+from ..pipeline import campus, linking, reader
 from ..pipeline.buzz import BUZZ_TYPES, catalog, valid_pattern
-from ..pipeline.dates import find_dates, first_title_line, rule_based_actions, speak_date, speak_date_lang, verify_action
-from ..pipeline.profile import parse_profile, rule_based_personal, verify_personal
-from ..pipeline.steps import today_local
+from ..pipeline.dates import speak_date
+from ..pipeline.profile import parse_profile
 from ..providers.base import ProviderError
-from ..providers.llm import gemini_extract
-from ..providers.media import prepare_document, sniff_audio, sniff_mime
-from ..providers.ocr import pdf_text_layer, run_ocr
-from ..providers.stt import transcribe
+from ..providers.media import sniff_audio, sniff_mime
 from ..providers.tts import speak_uncached
-from ..security import verify_student_token
+from ..providers.stt import transcribe
+from ..security import seal, unseal, verify_student_token
 from ..storage import get_storage
 
 router = APIRouter(prefix="/api/me", tags=["student"])
 public_router = APIRouter(prefix="/api/public", tags=["public"])
 
 
-async def current_student(t: str = Query(..., description="signed token from the WhatsApp link"), s: AsyncSession = Depends(get_session)) -> Student:
+async def current_student(t: str = Depends(student_token), s: AsyncSession = Depends(get_session)) -> Student:
     st = await s.get(Student, verify_student_token(t))
     if st is None:
         raise NotFound("Student not found.", code="student_not_found")
@@ -113,119 +109,6 @@ def catch_json(pd: PersonalDeadline, readback: str | None = None) -> dict:
     }
 
 
-CAUTION = {
-    "en": "Some dates could not be checked against the scan. Please confirm them with the college office.",
-    "hi": "कुछ तारीखों की स्कैन से पुष्टि नहीं हो सकी। कृपया कॉलेज कार्यालय से पूछ लें।",
-    "mr": "काही तारखांची स्कॅनशी खात्री करता आली नाही. कृपया महाविद्यालयाच्या कार्यालयात विचारा.",
-}
-NOT_NOTICE = {
-    "en": "This does not look like a college notice. Please try a clearer photo.",
-    "hi": "यह कॉलेज की सूचना जैसी नहीं लगती। कृपया साफ़ फ़ोटो भेजें।",
-    "mr": "ही महाविद्यालयाची सूचना वाटत नाही. कृपया स्पष्ट फोटो पाठवा.",
-}
-
-
-FALLBACK_INTRO = {
-    "en": "I could not summarise this notice, so here is the start of its text.",
-    "hi": "मैं इस सूचना का सार नहीं बना सका, इसलिए इसका शुरुआती पाठ पढ़ रहा हूँ।",
-    "mr": "मला या सूचनेचा सारांश करता आला नाही, म्हणून तिचा सुरुवातीचा मजकूर वाचत आहे.",
-}
-PARTIAL = {
-    "en": "This file has {total} pages. I read only the first {n}.",
-    "hi": "इस फ़ाइल में {total} पन्ने हैं। मैंने सिर्फ़ पहले {n} पढ़े हैं।",
-    "mr": "या फाईलमध्ये {total} पाने आहेत. मी फक्त पहिली {n} वाचली आहेत.",
-}
-
-
-PERSONAL_HEAD = {"en": "For you:", "hi": "आपके लिए:", "mr": "तुमच्यासाठी:"}
-PERSONAL_NONE = {
-    "en": "I could not find anything in this notice that is specifically for you.",
-    "hi": "मुझे इस सूचना में आपके लिए खास कुछ नहीं मिला।",
-    "mr": "मला या सूचनेत तुमच्यासाठी खास काही सापडले नाही.",
-}
-PERSONAL_CHECK = {
-    "en": "Please double-check this on the notice itself.",
-    "hi": "कृपया सूचना में खुद भी जाँच लें।",
-    "mr": "कृपया सूचनेत स्वतः तपासून घ्या.",
-}
-PERSONAL_RULE = {
-    "en": "I found a line with your details:",
-    "hi": "मुझे आपके विवरण वाली यह पंक्ति मिली:",
-    "mr": "मला तुमचे तपशील असलेली ही ओळ सापडली:",
-}
-
-
-def _plain_text(text: str) -> str:
-    """Scanned tables arrive as HTML. Turn cells into comma-separated speech and drop markup, so nothing reads '<td>' aloud."""
-    t = re.sub(r"</t[dh]\s*>", ", ", text, flags=re.I)
-    t = re.sub(r"</tr\s*>|<br\s*/?>", ". ", t, flags=re.I)
-    t = re.sub(r"<[^>]*>?", " ", t)  # tags, including ones whose closing '>' was lost
-    t = re.sub(r"[#*|_`~]+", " ", t)
-    t = re.sub(r"(,\s*){2,}", ", ", t)
-    t = re.sub(r"(\.\s*){2,}", ". ", t)
-    return re.sub(r"\s+", " ", t).strip()
-
-
-def _has_text_layer(reader) -> bool:
-    """Sample first, middle and last page: a PDF exported from Word or PowerPoint has real text on every page, a scan has none."""
-    n = len(reader.pages)
-    try:
-        for i in sorted({0, n // 2, n - 1}):
-            t = reader.pages[i].extract_text() or ""
-            if len(t.strip()) < 150 or "(cid:" in t:
-                return False
-    except Exception:  # noqa: BLE001
-        return False
-    return True
-
-
-def _first_pages(data: bytes, cfg, force_scan: bool = False) -> tuple[bytes, tuple[int, int] | None, int]:
-    """Smarter page limit. Scanned pages are paid OCR, so they are capped (MAX_PDF_PAGES). PDFs that already contain
-    text are read for free, so they may be longer (MAX_TEXT_PDF_PAGES). Returns (pdf, (pages read, pages in file) if cut, limit)."""
-    import io
-
-    from pypdf import PdfReader, PdfWriter
-
-    try:
-        reader = PdfReader(io.BytesIO(data))
-        if reader.is_encrypted:
-            raise AppError("This PDF is password protected, so I cannot read it. Please send an unlocked copy.", code="pdf_locked", status_code=415)
-        total = len(reader.pages)
-        limit = cfg.max_pdf_pages
-        if not force_scan and total > limit and _has_text_layer(reader):
-            limit = cfg.max_text_pdf_pages
-        if total <= limit:
-            return data, None, limit
-        writer = PdfWriter()
-        for page in reader.pages[:limit]:
-            writer.add_page(page)
-        out = io.BytesIO()
-        writer.write(out)
-        return out.getvalue(), (limit, total), limit
-    except AppError:
-        raise
-    except Exception:  # noqa: BLE001  (damaged: let prepare_document report it)
-        return data, None, cfg.max_pdf_pages
-
-
-def _prepare(raw: bytes, cfg):
-    """Returns (document, truncation info, free text layer or None). Cost and time stay bounded for any upload."""
-    data, truncated, limit = raw, None, cfg.max_pdf_pages
-    if sniff_mime(raw) == "application/pdf":
-        data, truncated, limit = _first_pages(raw, cfg)
-    doc = prepare_document(data, max_pages=limit, max_side=cfg.max_image_side_px)
-    layer = None
-    if limit > cfg.max_pdf_pages:
-        layer = pdf_text_layer(doc)
-        if layer is None:  # looked like text but is not clean: treat it as a scan so cost stays capped
-            data, truncated, limit = _first_pages(raw, cfg, force_scan=True)
-            doc = prepare_document(data, max_pages=limit, max_side=cfg.max_image_side_px)
-    return doc, truncated, layer
-
-
-_READ_SLOTS = asyncio.Semaphore(2)  # the free host has little memory: at most two notices are processed at once, others wait their turn
-
-
 @router.post("/read")
 async def read_notice(
     request: Request,
@@ -235,127 +118,102 @@ async def read_notice(
     student: Student = Depends(current_student),
 ):
     """Read any notice (photo or PDF) aloud. Nothing is published, shared or stored; dates are checked against the scan.
-    `profile` (optional JSON, kept only on the student's phone) lets the answer say what applies to that student."""
+    `profile` (optional JSON, kept only on the student's phone) lets the answer say what applies to that student.
+    The same engine answers on WhatsApp (pipeline/reader.py)."""
     from .public import rate_limit
 
+    rate_limit(request, get_settings().global_reads_per_minute, key="global:read")  # whole-service ceiling
     rate_limit(request, 6, key=f"read:{student.id}")  # per student, not per address
     cfg = get_settings()
-    lang = lang if lang in CAUTION else "en"
     limit = cfg.max_upload_mb * 1024 * 1024
     data = await file.read(limit + 1)
     if len(data) > limit:
         raise AppError(f"That file is larger than {cfg.max_upload_mb} MB. Please send a smaller one.", code="file_too_large", status_code=413)
     if len(data) < 200:
         raise AppError("That file looks empty. Please choose the notice again.", code="empty_file", status_code=400)
-    async with _READ_SLOTS:
-        return await _read_notice(data, lang, parse_profile(profile))
+    res = await reader.read_notice(data, lang, parse_profile(profile))
+    text = res.pop("_ocr_text", "")
+    # "Ask your notice" without storing anything: the scan text goes back to the phone encrypted (only this server can open it,
+    # and only for an hour). The phone returns it with each question. The server keeps no copy.
+    res["ask_token"] = seal(text[:30000]) if res.get("is_notice") and text else None
+    return res
 
 
-async def _read_notice(data: bytes, lang: str, prof=None) -> dict:
+@router.post("/ask")
+async def ask_notice(
+    request: Request,
+    ask_token: str = Form(...),
+    question: str | None = Form(None),
+    audio: UploadFile | None = File(None),
+    lang: str = Form("en"),
+    student: Student = Depends(current_student),
+):
+    """Ask a question about the notice just read, by text or voice. Answered from that notice only; every date and number in the answer
+    is checked against it. Nothing is stored."""
+    from .public import rate_limit
+
+    rate_limit(request, 12, key=f"ask:{student.id}")
+    text = unseal(ask_token, 3600)
+    if text is None:
+        raise AppError("That notice is no longer open. Please read it again to ask about it.", code="ask_expired", status_code=410)
+    lang = lang if lang in ("en", "hi", "mr") else "en"
+    heard = None
+    if audio is not None:
+        data, mime, _ = await read_audio(audio)
+        try:
+            heard = question = await transcribe(data, mime)
+        except ProviderError as exc:
+            raise AppError("I could not hear that clearly. Please try again, or type it.", code="stt_failed", status_code=502) from exc
+    res = await reader.ask_notice(question or "", text, lang)
+    mp3 = await speak_uncached(res["answer"], lang)
+    return {**res, "question": heard, "lang": lang, "audio_b64": base64.b64encode(mp3).decode() if mp3 else None, "audio_mime": "audio/mpeg"}
+
+
+# --------------------------------------------------------------------------- Connect WhatsApp
+
+
+def _whatsapp_available() -> bool:
     cfg = get_settings()
-    try:
-        doc, truncated, layer = _prepare(data, cfg)
-        ocr = layer or await run_ocr(doc, "mr", cache=False)  # cache=False: the notice text is never saved
-    except AppError:
-        raise
-    except ProviderError as exc:
-        raise AppError("I could not read that file just now. Please try again in a minute.", code="read_failed", status_code=502) from exc
-    except PermanentError as exc:  # already written for people, e.g. "This file is not a PDF or photo"
-        raise AppError(str(exc), code=getattr(exc, "code", "unsupported_file"), status_code=415) from exc
-    except Exception as exc:  # noqa: BLE001
-        raise AppError("I could not read that file. Please try a clearer photo or PDF.", code="read_failed", status_code=502) from exc
+    return bool(cfg.whatsapp_ready and cfg.whatsapp_business_number)
 
-    ref = today_local()
-    image = doc.data if doc.mime.startswith("image/") else None
-    # Tables and date sheets: let the vision model see the page itself (photos always; short PDFs up to 4 pages).
-    has_table = "<table" in ocr.text.lower()
-    visual = image if image is not None else (doc.data if doc.mime == "application/pdf" and doc.pages <= 4 and has_table else None)
-    if len(ocr.text.strip()) < 10 and image is None:
-        raise AppError("I could not find any text in that file. It may be blank or too faint. Please try a clearer scan.", code="no_text", status_code=422)
-    ex = None
-    try:
-        # Hard time limit: the host cuts requests near 100 seconds, so a slow AI answer must fall back to the plain text.
-        ex = await asyncio.wait_for(
-            gemini_extract(ocr.text, image=visual, image_mime=doc.mime if visual else None, today=ref.isoformat(), profile=prof, lang=lang, force_image=has_table),
-            timeout=40,
-        )
-        title, is_notice, legibility = ex.title, ex.is_notice, ex.legibility
-        summary = getattr(ex.summaries, lang) or ex.summaries.en
-        raw_actions = [a.model_dump() for a in ex.actions]
-    except Exception as exc:  # noqa: BLE001  (Gemini busy, or its answer was cut off on a long document)
-        if not ocr.text.strip():
-            raise AppError("I could not read any text in that file. Please try a clearer photo or PDF.", code="read_failed", status_code=502) from exc
-        # Fallback: the scan was read, so speak the start of the text itself rather than failing.
-        title, is_notice, legibility = first_title_line(ocr.text), True, "partial"
-        summary = FALLBACK_INTRO[lang] + " " + _plain_text(ocr.text)[:600]
-        raw_actions = rule_based_actions(ocr.text, ref)
 
-    actions, needs_check = [], False
-    for a in raw_actions:
-        v = verify_action(due_date=a.get("due_date"), due_time=a.get("due_time"), amount=a.get("amount"), source_quote=a.get("source_quote"), ocr_text=ocr.text, ref=ref)
-        needs_check = needs_check or v.status != "verified"
-        actions.append(
-            {
-                "kind": a.get("kind"),
-                "label": a.get("label"),
-                "due_date": a.get("due_date"),
-                "date_spoken": speak_date_lang(date.fromisoformat(a["due_date"]), lang) if a.get("due_date") and v.status == "verified" else None,
-                "due_time": a.get("due_time"),
-                "venue": a.get("venue"),
-                "status": v.status,
-                "reasons": v.reasons,
-            }
-        )
+@router.get("/whatsapp")
+async def whatsapp_status(student: Student = Depends(current_student), s: AsyncSession = Depends(get_session)):
+    """Is this website account connected to WhatsApp, and is a connection waiting to be confirmed?"""
+    return {"available": _whatsapp_available(), "open_url": linking.whatsapp_link(), **await linking.link_status(s, student)}
 
-    # The spoken summary is AI text too: any date in it must exist in the scan, and any weekday must match its date.
-    scan_dates = {f.value for f in find_dates(ocr.text, ref)} | {f.alt_value for f in find_dates(ocr.text, ref) if f.alt_value}
-    for f in find_dates(summary, ref):
-        if f.value not in scan_dates or (f.weekday_written is not None and f.weekday_written != f.value.weekday()):
-            needs_check = True
 
-    # Personal insight: only claims that are really in the scan AND really about this student are spoken.
-    personal, personal_spoken = None, ""
-    if prof is not None and is_notice:
-        ai = getattr(ex, "personal", None)
-        matches = verify_personal(ai.matches, ocr.text, prof) if ai is not None else []
-        by_rule = False
-        if not matches:
-            matches, by_rule = rule_based_personal(ocr.text, prof), True
-        if not matches:
-            personal_spoken = PERSONAL_NONE[lang]
-        elif by_rule:
-            personal_spoken = f"{PERSONAL_RULE[lang]} " + " ".join(m.quote[:220] + "." for m in matches[:2]) + f" {PERSONAL_CHECK[lang]}"
-        else:
-            personal_spoken = f"{PERSONAL_HEAD[lang]} " + " ".join(f"{m.what}: {m.detail}." for m in matches[:3]) + f" {PERSONAL_CHECK[lang]}"
-        personal = {
-            "found": bool(matches),
-            "matches": [{"what": m.what, "detail": m.detail, "quote": m.quote, "basis": m.basis} for m in matches],
-        }
+@router.post("/whatsapp/link")
+async def whatsapp_link(request: Request, student: Student = Depends(current_student), s: AsyncSession = Depends(get_session)):
+    """Start connecting: returns the click-to-chat link and its QR code. The code in it is random, single-use and lasts 10 minutes."""
+    from .public import rate_limit
 
-    if not is_notice:
-        spoken = NOT_NOTICE[lang]
-    else:
-        spoken = f"{personal_spoken} {summary}".strip()
-        if needs_check or legibility != "good":
-            spoken = f"{spoken} {CAUTION[lang]}"
-    if truncated:
-        spoken = f"{spoken} {PARTIAL[lang].format(n=truncated[0], total=truncated[1])}"
-    # Spoken here, returned inside the answer and never stored: personal details must not end up in a cache or a file.
-    mp3 = await speak_uncached(spoken, lang)
-    return {
-        "title": title,
-        "is_notice": is_notice,
-        "lang": lang,
-        "spoken_text": spoken,
-        "legibility": legibility,
-        "actions": actions,
-        "needs_check": needs_check,
-        "personal": personal,
-        "audio_b64": base64.b64encode(mp3).decode() if mp3 else None,
-        "audio_mime": "audio/mpeg",
-        "audio_url": None,
-        "pages_read": truncated[0] if truncated else getattr(ocr, "pages", None),
-    }
+    if not _whatsapp_available():
+        raise AppError("WhatsApp is not set up on this server yet.", code="whatsapp_unavailable", status_code=503)
+    rate_limit(request, 5, key=f"link:{student.id}")
+    code, _row = await linking.start_link(s, student)
+    url = linking.whatsapp_link(code)
+    return {"url": url, "qr_svg": linking.qr_svg(url), "code": code, "expires_in_seconds": int(linking.LINK_TTL.total_seconds())}
+
+
+class ConfirmIn(BaseModel):
+    code: str = Field(min_length=4, max_length=12)
+
+
+@router.post("/whatsapp/confirm")
+async def whatsapp_confirm(request: Request, body: ConfirmIn, student: Student = Depends(current_student), s: AsyncSession = Depends(get_session)):
+    """Finish connecting: type the 4-digit code the WhatsApp assistant sent back. Five wrong tries cancel it."""
+    from .public import rate_limit
+
+    rate_limit(request, 10, key=f"linkc:{student.id}")
+    return await linking.confirm_link(s, student, body.code)
+
+
+@router.delete("/whatsapp")
+async def whatsapp_disconnect(student: Student = Depends(current_student), s: AsyncSession = Depends(get_session)):
+    """Disconnect WhatsApp at any time. The phone number is forgotten; saved deadlines stay."""
+    await linking.disconnect(s, student)
+    return {"linked": False}
 
 
 @router.post("/catch", status_code=201)

@@ -1,6 +1,6 @@
 # Samyukta
 
-Installable web app that reads a scanned college notice (photo or PDF) aloud in English, Hindi or Marathi, and verifies every date against the scan before speaking it. Student-facing, accountless, and stateless for reads.
+Installable web app that reads a scanned college notice (photo or PDF) aloud in English, Hindi or Marathi, and verifies every date against the scan before speaking it. Student-facing and accountless; reads are stateless on the website. An optional WhatsApp assistant (official Cloud API) uses the same engine.
 
 Stack: Next.js 15 / React 19 (PWA) · FastAPI (async) · SQLAlchemy · Postgres (SQLite locally) · Sarvam AI · Google Gemini · Docker.
 
@@ -69,6 +69,7 @@ sequenceDiagram
 | Failover | Per (model, key) circuit breaker. Order: all keys of the main model, then all keys of the fallback model. Quota (429) and overload (503) skip to the next without retrying |
 | Time bound | `asyncio.wait_for(…, 40)` so the host's ~100 s request limit is never reached; on timeout the rule-based fallback quotes the scan |
 | Speech | `speak_uncached`: Sarvam → Google TTS → none (client uses the phone's own voice). Audio is returned inline, never written |
+| Safety | `safety.check` (plain code, no AI): payment to a UPI ID or a mobile number, short or look-alike links, OTP/PIN requests, rush-to-pay wording. Cautions are spoken first. It states facts and never calls a notice fake |
 | Concurrency | `Semaphore(2)`, sized for 512 MB |
 
 ## 3. Verification (the trust boundary)
@@ -117,13 +118,15 @@ Circuit breakers and retries: `providers/base.py`. Paid-call budget ledger (`res
 |---|---|
 | `POST /api/public/join` | Create an anonymous student, return a signed token. Optional `DEMO_ACCESS_CODE` |
 | `POST /api/me/read` | Read a notice (above) |
+| `POST /api/me/ask` | Question about the notice just read, by text or voice. The notice text returns from the phone as an encrypted, expiring `ask_token` (nothing is stored). The answer is grounded: every date and number must be in the notice, and it may not name a payment ID, link or number the notice lacks |
+| `GET/POST/DELETE /api/me/whatsapp...` | Optional: connect WhatsApp (QR code plus a 4-digit confirm code), disconnect |
 | `POST /api/me/catch`, `/catch/{id}/confirm`, `/catch/{id}/cancel` | Spoken deadline: read-back, then confirm |
 | `GET /api/me/deadlines`, `GET /api/me/inbox` | Saved deadlines |
 | `GET/PUT /api/me/buzz-codes`, `POST /api/me/push/subscribe` | Vibration patterns, Web Push |
 | `GET /media/{key}` | Audio (staff path only) |
 | `GET /health`, `GET /ready` | Liveness, readiness |
 
-Auth: `?t=<token>`; HMAC-signed, expiring (`security.py`). Errors share one shape: `{error: {code, message, detail}}`.
+Auth: `Authorization: Bearer <token>` (the older `?t=` form still works); HMAC-signed, expiring (`security.py`, `auth_deps.py`). Errors share one shape: `{error: {code, message, detail}}`.
 
 ## 6. Data model and privacy
 
@@ -133,21 +136,25 @@ Auth: `?t=<token>`; HMAC-signed, expiring (`security.py`). Errors share one shap
 | `personal_deadline` | only deadlines the student saves | |
 | `provider_usage` | provider, units, latency | No content. Feeds the spend cap |
 | `ocr_cache`, `audio_cache` | **not used** by student reads | Staff path only |
+| `link_code` | WhatsApp path only | Hashed one-time codes, 10-minute life |
+| `recent_read` | WhatsApp path only | Last notice, encrypted, for one hour; erased on expiry or `DELETE` |
 
-Not stored: the notice, its text, the summary, the audio, the profile. Personal responses carry `Cache-Control: no-store`. Logs hold method, path, status, duration and a request id.
+Not stored on the website path: the notice, its text, the summary, the audio, the profile. On the optional WhatsApp path the phone number is kept hashed and encrypted, and the last notice is kept encrypted for one hour so it can be asked about; sending `DELETE` erases everything. Personal responses carry `Cache-Control: no-store`. Logs hold method, path, status, duration and a request id.
 
 ## 7. Security controls
 
 | Area | Control | Tested |
 |---|---|---|
 | Transport/browser | Strict CSP (`default-src 'self'`, no framing, `object-src 'none'`), `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy` (microphone self only), HSTS in prod | yes |
-| Identity | HMAC-signed expiring tokens; tampered tokens rejected; ownership checks return 404 for foreign records | yes |
-| Abuse | Per-student read limit (6/min), per-client join limit (40/min), optional access code, 15 MB cap, magic-byte typing, page caps, spend cap | yes |
-| AI | Delimited untrusted input, schema-bound output, code re-verification, sanitised profile | yes |
+| Identity | HMAC-signed expiring tokens sent in a header (never in the URL); tampered tokens rejected; ownership checks return 404 for foreign records | yes |
+| Abuse | Per-student read limit (6/min), per-client join limit (40/min), **whole-service ceilings** (30 reads/min, 120 joins/min) that hold even if a client address is spoofed, optional access code, 15 MB cap, magic-byte typing, page caps, spend cap | yes |
+| AI | Delimited untrusted input, schema-bound output, code re-verification, sanitised profile, answers may not introduce payment IDs or links | yes |
+| Fraud notices | `safety.check` flags payment-to-person, short and look-alike links, OTP/PIN requests (Hindi, Marathi and English) | yes |
+| WhatsApp linking | Two-step: a one-time QR code, then a 4-digit confirm code typed on the website. A phone number alone never links an account; 5 wrong tries cancel it | yes |
 | Secrets | Env vars only; `.env` ignored by git and Docker; prod refuses to start with default `SECRET_KEY` or missing `PHONE_ENCRYPTION_KEY` | yes |
 | Attack surface | The college side (staff desk, publishing, walkthroughs, WhatsApp webhook) is not mounted unless `COLLEGE_MODE=true`. With it off, the admin-setup endpoint does not exist | yes |
 
-Known gaps: CSP allows `'unsafe-inline'` scripts (Next.js bootstrap; nonce-based CSP is the next step); rate limits are in-memory and per instance; no external penetration test.
+Known gaps: CSP allows `'unsafe-inline'` scripts (Next.js bootstrap; nonce-based CSP is the next step); rate limits are in-memory and per instance, and the per-client limit trusts the first `X-Forwarded-For` value, which a client can set (the whole-service ceilings bound the damage); anonymous sessions are never purged; no external penetration test.
 
 ## 8. Accessibility engineering
 
@@ -158,7 +165,7 @@ Known gaps: CSP allows `'unsafe-inline'` scripts (Next.js bootstrap; nonce-based
 
 ## 9. Tests
 
-`cd code/backend && pytest -q` runs 118 tests:
+`cd code/backend && pytest -q` runs 186 tests:
 
 | File | Covers |
 |---|---|
@@ -169,6 +176,9 @@ Known gaps: CSP allows `'unsafe-inline'` scripts (Next.js bootstrap; nonce-based
 | `test_profile` | Profile sanitising, focusing, personal verification, page-limit logic, the no-storage guarantees |
 | `test_security` | Headers, tokens, ownership, access code, upload and rate limits |
 | `test_college_mode` | College side absent when off, present when on |
+| `test_safety` | Payment, link, OTP and urgency red flags, with the false-positive cases |
+| `test_whatsapp_student` | The WhatsApp assistant end to end: linking, reading, asking, saving, deleting |
+| `test_audit_fixes` | Header auth, whole-service ceilings, injected links in answers, access-code matching |
 
 CI (`.github/workflows/ci.yml`): backend tests and `ruff`, frontend `tsc --noUnusedLocals` and build.
 
@@ -183,6 +193,8 @@ CI (`.github/workflows/ci.yml`): backend tests and `ruff`, frontend `tsc --noUnu
 | `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODELS` | Extraction and failover |
 | `MAX_PDF_PAGES`, `MAX_TEXT_PDF_PAGES`, `MAX_UPLOAD_MB` | Input bounds |
 | `DEMO_ACCESS_CODE` | Optional sign-up code |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_BUSINESS_NUMBER` | Optional WhatsApp assistant; mounted when the token and phone-number id are set (prod also requires the app secret) |
+| `GLOBAL_READS_PER_MINUTE` | Whole-service read ceiling (default 30) |
 | `VAPID_*` | Web Push |
 | `COLLEGE_MODE`, `NEXT_PUBLIC_COLLEGE_MODE` | Mount the college side (API / website). Default off |
 
@@ -215,7 +227,7 @@ cd code/frontend && npx tsc --noEmit --noUnusedLocals && node scripts/a11y-stude
 │  ├─ Dockerfile, start.sh        one container: API + website
 │  ├─ backend/
 │  │  ├─ app/routers/             HTTP (student always on; college side behind COLLEGE_MODE)
-│  │  ├─ app/pipeline/            dates.py (verifier), profile.py, jobs, notifications
+│  │  ├─ app/pipeline/            dates.py (verifier), reader.py (the reading engine), profile.py, safety.py, linking.py, bot.py (WhatsApp), jobs
 │  │  ├─ app/providers/           ocr, llm, tts, stt, media, webpush, whatsapp, base (breakers)
 │  │  └─ tests/
 │  └─ frontend/

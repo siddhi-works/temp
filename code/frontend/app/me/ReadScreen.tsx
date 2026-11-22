@@ -6,6 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, speakTime } from "@/lib/api";
 import { friendlyError, useT } from "@/lib/i18n";
 import { shrinkImage } from "@/lib/image";
+import { IconAlert, IconCheck, IconPlay, IconShield } from "@/components/Icons";
+import { downloadIcs } from "@/lib/ics";
+import { sampleResult } from "@/lib/sample";
+import AskNotice from "./AskNotice";
 import { Status, speakWithPhone } from "./Shell";
 
 const SPEEDS = [0.8, 1, 1.25];
@@ -126,8 +130,21 @@ export default function ReadScreen({ token }: { token: string }) {
       <button type="button" className="big-btn main" disabled={busy} onClick={() => fileRef.current?.click()}>
         {busy ? t("reading") : t("choose_file")}
       </button>
+      {busy ? <span className="loader" aria-hidden="true"><i /><i /><i /></span> : null}
+      <button type="button" className="big-btn has-icon" disabled={busy} onClick={() => setRes(sampleResult(langRef.current as "en" | "hi" | "mr"))}>
+        <span className="bb-icon"><IconPlay /></span>
+        <span className="bb-text">{t("sample_btn")}<span className="sub">{t("sample_hint")}</span></span>
+      </button>
     </>
   );
+
+  const calendarItems = (res?.actions || [])
+    .filter((a: any) => a.status === "verified" && a.due_date)
+    .map((a: any) => ({ label: a.label, due_date: a.due_date, due_time: a.due_time, venue: a.venue }));
+
+  const nOk = (res?.actions || []).filter((a: any) => a.status === "verified").length;
+  const nBad = (res?.actions || []).filter((a: any) => a.status !== "verified").length;
+  const nSafe = (res?.safety || []).filter((f: any) => f.level === "caution").length;
 
   if (!res) {
     return (
@@ -143,6 +160,12 @@ export default function ReadScreen({ token }: { token: string }) {
   return (
     <div>
       <h2 ref={resultRef} tabIndex={-1} style={{ marginTop: 0 }}>{res.title || ""}</h2>
+      {res.sample ? <p className="notice-box" role="note">{t("sample_badge")}</p> : null}
+      <ul className="verdict" aria-label={t("v_head")}>
+        {nOk ? <li className="v ok"><IconCheck size={24} />{t("v_checked").replace("{n}", String(nOk))}</li> : null}
+        {nBad ? <li className="v warn"><IconAlert size={24} />{t("v_unconfirmed").replace("{n}", String(nBad))}</li> : null}
+        {nSafe ? <li className="v warn"><IconShield size={24} />{t("v_safety").replace("{n}", String(nSafe))}</li> : null}
+      </ul>
 
       <section className="card" aria-labelledby="listen-h">
         <h3 id="listen-h">{t("listen")}</h3>
@@ -165,6 +188,20 @@ export default function ReadScreen({ token }: { token: string }) {
           </div>
         ) : null}
       </section>
+
+      {res.safety?.length ? (
+        <section className={`card ${res.safety.some((f: any) => f.level === "caution") ? "safety" : "info-card"}`} aria-labelledby="safety-h">
+          <div className="p-head"><IconShield /><h3 id="safety-h">{t("safety_h")}</h3></div>
+          <ul>
+            {res.safety.map((f: any, i: number) => (
+              <li key={i}>
+                {f.text}
+                <span className="muted" style={{ display: "block" }}>{t("found_in")}: {f.evidence}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {res.personal ? (
         <section className="card" aria-labelledby="foryou-h">
@@ -193,17 +230,36 @@ export default function ReadScreen({ token }: { token: string }) {
       {res.actions?.length ? (
         <>
           <h2>{t("dates_tasks")}</h2>
-          <ul>
-            {res.actions.map((a: any, i: number) => (
-              <li key={i}>
-                <strong>{a.label}</strong>
-                {a.date_spoken ? `. ${a.date_spoken}${a.due_time ? ", " + speakTime(a.due_time) : ""}` : ""}
-                {a.status !== "verified" ? <span className="notice-box" style={{ display: "block", marginTop: 8 }}>{t("not_confirmed")}</span> : null}
-              </li>
-            ))}
+          <p className="score">{t("dates_checked").replace("{n}", String(res.actions.filter((a: any) => a.status === "verified").length)).replace("{total}", String(res.actions.length))}</p>
+          <ul className="proofs">
+            {res.actions.map((a: any, i: number) => {
+              const ok = a.status === "verified";
+              return (
+                <li key={i} className={`proof ${ok ? "ok" : "warn"}`}>
+                  <div className="p-head">
+                    <span className="p-icon">{ok ? <IconCheck /> : <IconAlert />}</span>
+                    <div>
+                      <strong>{a.label}</strong>
+                      {a.date_spoken ? `. ${a.date_spoken}${a.due_time ? ", " + speakTime(a.due_time) : ""}` : ""}
+                      <span className="p-status">{ok ? t("proof_ok") : t("not_confirmed")}</span>
+                    </div>
+                  </div>
+                  {ok && a.evidence ? <p className="quote" lang={res.lang}><span className="muted">{t("proof_from")}: </span>{a.evidence}</p> : null}
+                </li>
+              );
+            })}
           </ul>
+          {calendarItems.length ? (
+            <div className="stack" style={{ marginTop: 18 }}>
+              <button type="button" className="big-btn" onClick={() => { downloadIcs(calendarItems); setStatus({ text: t("cal_done"), tone: "ok" }); }}>{t("cal_btn")}</button>
+              <p className="muted">{t("cal_note")}</p>
+              <Status text={status.text} tone={status.tone} />
+            </div>
+          ) : null}
         </>
       ) : null}
+
+      {res.ask_token ? <AskNotice token={token} askToken={res.ask_token} lang={res.lang} /> : null}
 
       <div className="stack" style={{ marginTop: 36 }}>
         <button type="button" className="big-btn" onClick={() => { setRes(null); setStatus({ text: "" }); }}>{t("read_another")}</button>

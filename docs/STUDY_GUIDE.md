@@ -22,6 +22,7 @@ For the team. Read this once, open the files in the order below, and you can exp
 | 3 | `app/routers/me.py` | **`_read_notice`**: the whole student flow in one function |
 | 4 | `app/pipeline/dates.py` | **`verify_action`**: the trust boundary. Find dates, weekdays, quotes |
 | 5 | `app/pipeline/profile.py` | Personal insight: `focus_text`, `verify_personal` |
+| 5b | `app/pipeline/reader.py`, `app/pipeline/safety.py` | The one reading engine the website and WhatsApp both call, and the fake-notice safety check |
 | 6 | `app/providers/ocr.py` | Reading scans: text layer, then Sarvam, then Gemini |
 | 7 | `app/providers/llm.py` | The AI call: schema, prompts, key and model failover |
 | 8 | `app/providers/tts.py` | Speech chain, and `speak_uncached` (the privacy path) |

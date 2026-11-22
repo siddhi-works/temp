@@ -147,6 +147,27 @@ def mask_phone(phone: str) -> str:
     return phone[:-6] + "xx" + phone[-4:] if len(phone) > 6 else "xxxx"
 
 
+# --- Sealed notice text (so a notice can be asked about without being stored in the clear) -----------------
+
+
+def _seal_key() -> bytes:
+    # A key of its own, derived from SECRET_KEY, so it is never the same key as the one that protects phone numbers.
+    return base64.urlsafe_b64encode(hmac.new(get_settings().secret_key.encode(), b"samyukta-notice-seal", hashlib.sha256).digest())
+
+
+def seal(text: str) -> str:
+    """Encrypt text. The token carries its own timestamp, so unseal() can refuse an old one."""
+    return Fernet(_seal_key()).encrypt(text.encode()).decode()
+
+
+def unseal(token: str, max_age_seconds: int = 3600) -> str | None:
+    """The text, or None if the token is forged, damaged or older than max_age_seconds."""
+    try:
+        return Fernet(_seal_key()).decrypt(token.encode(), ttl=max_age_seconds).decode()
+    except (InvalidToken, ValueError, TypeError):
+        return None
+
+
 # --- WhatsApp webhook signature ------------------------------------------------------------
 
 

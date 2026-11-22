@@ -11,7 +11,9 @@ import { clearDisplay } from "@/lib/display";
 import { COLLEGE_MODE } from "@/lib/features";
 import { useT } from "@/lib/i18n";
 import ReadScreen from "./ReadScreen";
+import { IconCalendar, IconCatch, IconRead, IconSettings } from "@/components/Icons";
 import SettingsScreen from "./SettingsScreen";
+import WhatsAppCard from "./WhatsAppCard";
 import { Screen } from "./Shell";
 import Welcome from "./Welcome";
 
@@ -130,7 +132,7 @@ export default function StudentApp() {
   if (view === "settings")
     return (
       <Screen title={t("settings")} onBack={back}>
-        <SettingsScreen extra={<Buzz token={token} />} />
+        <SettingsScreen extra={<><WhatsAppCard token={token} /><Buzz token={token} /></>} />
       </Screen>
     );
   if (view === "college" && college)
@@ -150,20 +152,24 @@ export default function StudentApp() {
     ["deadlines", t("deadlines"), t("deadlines_sub"), false],
     ["settings", t("settings"), t("settings_sub"), false],
   ];
+  const icons: Record<string, React.ReactNode> = { read: <IconRead />, catch: <IconCatch />, deadlines: <IconCalendar />, settings: <IconSettings /> };
   return (
     <Screen title={t("home_title")}>
       <nav aria-label={t("home_title")} className="stack">
         {items.map(([v, label, sub, main]) => (
-          <button key={v} type="button" className={`big-btn${main ? " main" : ""}`} aria-label={label} aria-describedby={`sub-${v}`} onClick={() => go(v)}>
-            {label}
-            <span className="sub" id={`sub-${v}`}>{sub}</span>
+          <button key={v} type="button" className={`big-btn has-icon${main ? " main" : ""}`} aria-label={label} aria-describedby={`sub-${v}`} onClick={() => go(v)}>
+            <span className="bb-icon">{icons[v]}</span>
+            <span className="bb-text">
+              {label}
+              <span className="sub" id={`sub-${v}`}>{sub}</span>
+            </span>
           </button>
         ))}
         {college ? (
           <button type="button" className="big-btn" onClick={() => go("college")}>{t("college")}</button>
         ) : null}
       </nav>
-      <p style={{ marginTop: 36 }}><a href="/about">{t("about_link")}</a></p>
+      <p><a href="/about">{t("about_link")}</a></p>
     </Screen>
   );
 }

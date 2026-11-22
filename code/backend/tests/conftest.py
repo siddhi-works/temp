@@ -288,3 +288,42 @@ def wa_payload(phone: str, msg_id: str, *, text: str | None = None, image_id: st
 
 def wa_status(message_id: str, status: str) -> dict:
     return {"entry": [{"changes": [{"value": {"statuses": [{"id": message_id, "status": status}]}}]}]}
+
+
+@pytest_asyncio.fixture
+async def engine_for_safety(client, monkeypatch):
+    """A web student plus the reading engine with its AI faked, for a notice that asks for a payment to a UPI ID."""
+    from datetime import date, timedelta
+    from types import SimpleNamespace
+
+    from app.pipeline import reader
+    from app.providers.llm import NoticeExtraction
+    from app.providers.ocr import OcrResult
+    from app.routers import public
+
+    public._hits.clear()
+    due, hall = date.today() + timedelta(days=10), date.today() + timedelta(days=14)
+    text = (
+        f"NOTICE\nLast date for exam form submission: {due:%d/%m/%Y} ({due:%A}).\n"
+        f"Hall tickets will be distributed on {hall:%d.%m.%Y} at 10.30 am in Room 14.\n"
+        "Pay the exam fee Rs. 500 to the UPI ID asha.college@ybl.\n"
+    )
+    ex = extraction_for(text, due.isoformat(), f"{due:%d/%m/%Y} ({due:%A})")
+    ex["actions"][1].update(due_date=hall.isoformat(), source_quote=f"Hall tickets will be distributed on {hall:%d.%m.%Y} at 10.30 am in Room 14.")
+    ex["summaries"] = {k: "Submit your winter exam form." for k in ("en", "mr", "hi")}
+    st = SimpleNamespace(due=due, extraction=ex)
+
+    async def fake_ocr(doc, lang="mr", prefer=None, cache=True):
+        return OcrResult(text=text, engine="fake", pages=1)
+
+    async def fake_extract(ocr_text, **kw):
+        return NoticeExtraction.model_validate(st.extraction)
+
+    async def fake_speak(t, lang):
+        return b"mp3"
+
+    monkeypatch.setattr(reader, "run_ocr", fake_ocr)
+    monkeypatch.setattr(reader, "gemini_extract", fake_extract)
+    monkeypatch.setattr(reader, "speak_uncached", fake_speak)
+    tok = (await client.post("/api/public/join", json={"lang": "en"})).json()["token"]
+    return st, tok

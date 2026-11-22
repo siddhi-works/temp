@@ -3,6 +3,7 @@
 /** Shared page frame for every student screen: top bar with language buttons, Back button, and a focused page title. */
 
 import { useEffect, useRef } from "react";
+import Logo from "@/components/Logo";
 import { useDisplay } from "@/lib/display";
 import { LANGS, useT } from "@/lib/i18n";
 import "./me.css";
@@ -29,7 +30,7 @@ export function TopBar() {
   const { t, lang, setLang } = useT();
   return (
     <header className="topbar">
-      <a className="brand-name" href="/me#" aria-label="Samyukta, home">Samyukta</a>
+      <a className="brand-name" href="/me#" aria-label="Samyukta, home"><Logo />Samyukta</a>
       <div className="langs" role="group" aria-label={t("language")}>
         {LANGS.map((l) => (
           <button key={l.code} type="button" lang={l.code} aria-pressed={lang === l.code} onClick={() => setLang(l.code)}>
