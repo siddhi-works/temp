@@ -57,11 +57,6 @@ def client_address(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-@router.get("/api/public/whoami")  # TEMPORARY diagnostic: shows only the caller's own request headers
-async def whoami(request: Request):
-    h = request.headers
-    return {"xff": h.get("x-forwarded-for"), "peer": request.client.host if request.client else None, "cf": h.get("cf-connecting-ip"), "real_ip": h.get("x-real-ip")}
-
 
 def _sweep(now: float) -> None:
     """Forget keys that have been quiet for a minute, so the table does not grow with every visitor."""

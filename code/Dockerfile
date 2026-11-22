@@ -20,6 +20,8 @@ WORKDIR /app/frontend
 COPY --from=web /web ./
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
-ENV PYTHONUNBUFFERED=1 STORAGE_DIR=/tmp/saathi-storage NEXT_TELEMETRY_DISABLED=1
+# Measured behind Render: X-Forwarded-For = [anything the client claims], real client, Cloudflare edge, internal proxy.
+# So the real client is the 3rd address from the right; anything a client adds sits to the left and is ignored.
+ENV PYTHONUNBUFFERED=1 STORAGE_DIR=/tmp/saathi-storage NEXT_TELEMETRY_DISABLED=1 TRUSTED_PROXY_HOPS=3
 EXPOSE 3000
 CMD ["bash", "/app/start.sh"]
