@@ -233,8 +233,23 @@ async def confirm_catch(s: AsyncSession, student: Student, pd: PersonalDeadline)
     return made
 
 
-def confirmation_text(pd: PersonalDeadline, reminders: int, lang: str = "en") -> str:
+NO_PUSH = {
+    "en": "Saved: {label}, due {when}. This phone will not buzz about it yet. Turn on vibration alerts in Settings, or add the date to your calendar.",
+    "hi": "सेव हुआ: {label}, अंतिम तारीख {when}। यह फ़ोन अभी इसके बारे में नहीं बजेगा। सेटिंग में वाइब्रेशन अलर्ट चालू करें, या तारीख को अपने कैलेंडर में जोड़ें।",
+    "mr": "सेव्ह केले: {label}, अंतिम तारीख {when}. हा फोन अजून याबद्दल वाजणार नाही. सेटिंग्जमध्ये व्हायब्रेशन अलर्ट सुरू करा किंवा तारीख तुमच्या कॅलेंडरमध्ये जोडा.",
+}
+
+
+def confirmation_text(pd: PersonalDeadline, reminders: int, lang: str = "en", push: bool = True) -> str:
+    """`push` False: nothing on this phone can receive a reminder, so do not promise one."""
     from .dates import speak_date, speak_date_lang, speak_time_lang
+
+    if not push:
+        if lang in ("hi", "mr"):
+            when = speak_date_lang(pd.due_date, lang) + (f", {speak_time_lang(pd.due_time, lang)}" if pd.due_time else "")
+        else:
+            when = speak_date(pd.due_date) + (f" at {speak_time(pd.due_time)}" if pd.due_time else "")
+        return NO_PUSH.get(lang, NO_PUSH["en"]).format(label=pd.label, when=when)
 
     if lang in ("hi", "mr"):
         when = speak_date_lang(pd.due_date, lang) + (f", {speak_time_lang(pd.due_time, lang)}" if pd.due_time else "")

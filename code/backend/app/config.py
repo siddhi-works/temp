@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     gemini_api_key_3: str = ""
     setup_token: str = ""
     demo_access_code: str = ""
+    # The WhatsApp assistant has never been run against Meta's real servers, so it is OFF. Credentials alone do not turn it on.
+    whatsapp_enabled: bool = False
+    # Anonymous (website-only) sessions are deleted after this many days without use. A session with a saved deadline still to come is kept. 0 = never.
+    stale_session_days: int = 3
+    # How many reverse proxies in front of the app add to X-Forwarded-For. -1 = old behaviour (first value, which a client can set).
+    trusted_proxy_hops: int = -1
     # Reads allowed per minute across ALL students. A hard ceiling on spend that holds even if per-client limits are bypassed.
     global_reads_per_minute: int = 30
 
@@ -119,8 +125,8 @@ class Settings(BaseSettings):
 
     @property
     def whatsapp_ready(self) -> bool:
-        """The student-facing WhatsApp assistant runs whenever the Cloud API credentials are set, even without COLLEGE_MODE."""
-        return bool(self.whatsapp_token and self.whatsapp_phone_number_id)
+        """The student-facing WhatsApp assistant runs only when WHATSAPP_ENABLED is true AND the Cloud API credentials are set."""
+        return bool(self.whatsapp_enabled and self.whatsapp_token and self.whatsapp_phone_number_id)
 
     @property
     def cors_list(self) -> list[str]:

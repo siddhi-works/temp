@@ -9,6 +9,7 @@ Run locally: uvicorn app.main:app --reload
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -20,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import dispose_engine, init_models
 from .errors import install_error_handlers
+from .pipeline.housekeeping import housekeeping_loop
 from .pipeline.worker import Worker
 from .routers import admin, impact, me, notices, public, routes, system, webhook
 
@@ -50,10 +52,13 @@ async def lifespan(app: FastAPI):
         worker = Worker()
         worker.start()
     app.state.worker = worker
+    cleaner = asyncio.create_task(housekeeping_loop()) if s.stale_session_days > 0 else None
     log.info("Samyukta API ready (env=%s)", s.env)
     try:
         yield
     finally:
+        if cleaner:
+            cleaner.cancel()
         if worker:
             await worker.stop()
         await dispose_engine()

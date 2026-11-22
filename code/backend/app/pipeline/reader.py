@@ -320,7 +320,9 @@ def is_grounded(answer: str, notice_text: str, ref: date) -> bool:
         if f.value not in scan_dates or (f.weekday_written is not None and f.weekday_written != f.value.weekday()):
             return False
     scan_numbers = set(re.findall(r"\d+", scan))
-    return all(n.lstrip("0") in {x.lstrip("0") for x in scan_numbers} for n in re.findall(r"\d{2,}", answer.translate(DEVANAGARI_DIGITS)))
+    # Every number counts, even a single digit: "bench 4" must not become "bench 7".
+    known = {x.lstrip("0") or "0" for x in scan_numbers}
+    return all((n.lstrip("0") or "0") in known for n in re.findall(r"\d+", answer.translate(DEVANAGARI_DIGITS)))
 
 
 async def ask_notice(question: str, notice_text: str, lang: str = "en") -> dict:

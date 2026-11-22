@@ -9,11 +9,11 @@ import { shrinkImage } from "@/lib/image";
 import { extFor, useRecorder } from "@/lib/recorder";
 import { clearDisplay } from "@/lib/display";
 import { COLLEGE_MODE } from "@/lib/features";
+import { downloadIcs } from "@/lib/ics";
 import { useT } from "@/lib/i18n";
 import ReadScreen from "./ReadScreen";
 import { IconCalendar, IconCatch, IconRead, IconSettings } from "@/components/Icons";
 import SettingsScreen from "./SettingsScreen";
-import WhatsAppCard from "./WhatsAppCard";
 import { Screen } from "./Shell";
 import Welcome from "./Welcome";
 
@@ -132,7 +132,7 @@ export default function StudentApp() {
   if (view === "settings")
     return (
       <Screen title={t("settings")} onBack={back}>
-        <SettingsScreen extra={<><WhatsAppCard token={token} /><Buzz token={token} /></>} />
+        <SettingsScreen extra={<Buzz token={token} />} />
       </Screen>
     );
   if (view === "college" && college)
@@ -222,6 +222,7 @@ function Catcher({ token }: { token: string }) {
   const [status, setStatus] = useState<{ text: string; tone?: "error" | "ok" }>({ text: "" });
   const [typed, setTyped] = useState("");
   const [newDate, setNewDate] = useState("");
+  const [saved, setSaved] = useState<{ label: string; due_date: string; due_time?: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const readbackRef = useRef<HTMLHeadingElement>(null);
 
@@ -232,6 +233,7 @@ function Catcher({ token }: { token: string }) {
 
   const submit = async (form: FormData) => {
     setBusy(true);
+    setSaved(null);
     setStatus({ text: t("c_listening") });
     try {
       const r = await api("/api/me/catch", { token, form, timeoutMs: 90000 });
@@ -271,6 +273,7 @@ function Catcher({ token }: { token: string }) {
       setPending(null);
       setTyped("");
       setStatus({ text: r.message, tone: "ok" });
+      setSaved({ label: r.label, due_date: r.due_date, due_time: r.due_time }); // the phone's own calendar works even with no alerts on
       window.dispatchEvent(new Event("saathi:deadlines"));
     } catch (e) {
       setStatus({ text: errText(e), tone: "error" });
@@ -314,6 +317,11 @@ function Catcher({ token }: { token: string }) {
         </div>
       </form>
       <Status {...status} />
+      {saved ? (
+        <div className="stack" style={{ marginTop: 16 }}>
+          <button type="button" className="big-btn" onClick={() => downloadIcs([saved])}>{t("cal_one")}</button>
+        </div>
+      ) : null}
       {pending ? (
         <div className="answer" style={{ display: "block" }}>
           <h3 ref={readbackRef} tabIndex={-1} style={{ marginTop: 0 }}>
@@ -540,6 +548,11 @@ function Deadlines({ token, inbox }: { token: string; inbox: any }) {
           ))}
         </ul>
       )}
+      {all.some((d: any) => !d.unconfirmed) ? (
+        <div className="stack" style={{ marginTop: 20 }}>
+          <button type="button" className="big-btn" onClick={() => downloadIcs(all.filter((d: any) => !d.unconfirmed).map((d: any) => ({ label: d.label, due_date: d.date, due_time: d.time })))}>{t("cal_all")}</button>
+        </div>
+      ) : null}
     </section>
   );
 }

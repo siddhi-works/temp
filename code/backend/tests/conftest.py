@@ -31,6 +31,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("WHATSAPP_TOKEN", "test")
     monkeypatch.setenv("WHATSAPP_PHONE_NUMBER_ID", "123")
     monkeypatch.setenv("FRONTEND_BASE_URL", "https://app.example")
+    monkeypatch.setenv("WHATSAPP_ENABLED", "true")  # the WhatsApp tests need it; one test proves it stays off by default
     monkeypatch.setenv("COLLEGE_MODE", "true")  # most tests exercise the college side too; one test proves it is off by default
     for k in ("WHATSAPP_APP_SECRET", "WHATSAPP_NOTICE_TEMPLATE", "GOOGLE_TTS_API_KEY"):
         monkeypatch.delenv(k, raising=False)

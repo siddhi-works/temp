@@ -24,6 +24,7 @@ from ..db import get_session, utcnow
 from ..errors import AppError, NotFound, TooManyRequests
 from ..models import College, ForwardCheck, Notice, NoticeSource, NoticeStatus, Student
 from ..pipeline.dates import speak_date
+from ..pipeline.housekeeping import touch_student
 from ..pipeline.jobs import enqueue
 from ..pipeline.steps import latest_in_series, load_notice, today_local
 from ..security import verify_student_token
@@ -44,6 +45,24 @@ _hits: dict[str, deque] = defaultdict(deque)
 _calls = 0
 
 
+def client_address(request: Request) -> str:
+    """The address a per-client limit counts. X-Forwarded-For can be set by the client, so only the entries our own proxies
+    appended are trusted: TRUSTED_PROXY_HOPS says how many (counted from the right). -1 keeps the old first-value behaviour."""
+    hops = get_settings().trusted_proxy_hops
+    fwd = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    if hops < 0:
+        return fwd[0] if fwd else (request.client.host if request.client else "?")
+    if hops and len(fwd) >= hops:
+        return fwd[-hops]
+    return request.client.host if request.client else "?"
+
+
+@router.get("/api/public/whoami")  # TEMPORARY diagnostic: shows only the caller's own request headers
+async def whoami(request: Request):
+    h = request.headers
+    return {"xff": h.get("x-forwarded-for"), "peer": request.client.host if request.client else None, "cf": h.get("cf-connecting-ip"), "real_ip": h.get("x-real-ip")}
+
+
 def _sweep(now: float) -> None:
     """Forget keys that have been quiet for a minute, so the table does not grow with every visitor."""
     for k in [k for k, q in _hits.items() if not q or now - q[-1] > 60]:
@@ -52,7 +71,7 @@ def _sweep(now: float) -> None:
 
 def rate_limit(request: Request, per_minute: int, key: str | None = None) -> None:
     """Per client address, or per `key` (a student id) so a whole classroom behind one Wi-Fi address is not blocked together."""
-    ip = key or request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "?")
+    ip = key or client_address(request)
     global _calls
     q = _hits[ip]
     now = time.monotonic()
@@ -149,6 +168,7 @@ async def _student(s: AsyncSession, token: str) -> Student:
     st = await s.get(Student, verify_student_token(token))
     if st is None:
         raise NotFound("Student not found.", code="student_not_found")
+    await touch_student(s, st)
     return st
 
 
@@ -236,7 +256,7 @@ async def join(request: Request, body: JoinIn, s: AsyncSession = Depends(get_ses
     if expected and not hmac.compare_digest(expected.lower(), (body.code or "").strip().lower()):
         raise AppError("That access code is not right. Ask the Samyukta team for the code.", code="access_code_required", status_code=403)
     lang = body.lang if body.lang in LANG_NAMES else "en"
-    st = Student(phone_hash="web-" + secrets.token_hex(16), phone_enc="none", preferred_lang=lang, consent_at=utcnow(), reminders_enabled=True)
+    st = Student(phone_hash="web-" + secrets.token_hex(16), phone_enc="none", preferred_lang=lang, consent_at=utcnow(), reminders_enabled=True, last_inbound_at=utcnow())
     s.add(st)
     await s.commit()
     return {"token": sign_student_token(st.id, ttl_days=365)}

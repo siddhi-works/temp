@@ -32,7 +32,6 @@ export default function Home() {
       <div className="features">
         <section className="card" aria-labelledby="f1"><div className="p-head"><IconCheck /><h3 id="f1">{t("land_proof_h")}</h3></div><p>{t("land_proof_t")}</p></section>
         <section className="card" aria-labelledby="f2"><div className="p-head"><IconShield /><h3 id="f2">{t("land_safety_h")}</h3></div><p>{t("land_safety_t")}</p></section>
-        <section className="card" aria-labelledby="f3"><div className="p-head"><IconEar /><h3 id="f3">{t("land_wa_h")}</h3></div><p>{t("land_wa_t")}</p></section>
       </div>
 
       <p><a href="/about">{t("about_link")}</a></p>

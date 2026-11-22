@@ -7,7 +7,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth_deps import student_token
@@ -16,6 +16,7 @@ from ..db import get_session
 from ..errors import AppError, NotFound
 from ..models import PersonalDeadline, PushSubscription, Snap, Student
 from ..pipeline import campus, linking, reader
+from ..pipeline.housekeeping import touch_student
 from ..pipeline.buzz import BUZZ_TYPES, catalog, valid_pattern
 from ..pipeline.dates import speak_date
 from ..pipeline.profile import parse_profile
@@ -34,6 +35,7 @@ async def current_student(t: str = Depends(student_token), s: AsyncSession = Dep
     st = await s.get(Student, verify_student_token(t))
     if st is None:
         raise NotFound("Student not found.", code="student_not_found")
+    await touch_student(s, st)
     return st
 
 
@@ -261,7 +263,11 @@ async def confirm_catch(catch_id: str, body: CatchConfirm | None = None, student
             pd.label = body.label
     made = await campus.confirm_catch(s, student, pd)
     lang = body.lang if body and body.lang in ("hi", "mr") else "en"
-    return {**catch_json(pd), "reminders": len(made), "message": campus.confirmation_text(pd, len(made), lang)}
+    # A website student is only reminded by a vibration alert. With none turned on, saying 'I will remind you' would be untrue.
+    can_buzz = not student.phone_hash.startswith("web-") or bool(
+        await s.scalar(select(func.count()).select_from(PushSubscription).where(PushSubscription.student_id == student.id))
+    )
+    return {**catch_json(pd), "reminders": len(made), "message": campus.confirmation_text(pd, len(made), lang, push=can_buzz)}
 
 
 @router.post("/catch/{catch_id}/cancel")
